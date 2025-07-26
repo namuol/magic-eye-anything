@@ -3,6 +3,7 @@ import {
   pipeline,
   RawImage,
 } from '@huggingface/transformers';
+
 import {PixelGrid} from './PixelGrid';
 
 async function main() {
@@ -133,6 +134,18 @@ async function main() {
 
     hide('messages');
     show('canvas');
+    show('save-image-container');
+
+    // Add save image functionality
+    const saveButton = document.getElementById(
+      'save-image',
+    ) as HTMLButtonElement;
+    saveButton.addEventListener('click', () => {
+      const link = document.createElement('a');
+      link.download = 'autostereogram.png';
+      link.href = canvas.toDataURL();
+      link.click();
+    });
   });
 }
 
@@ -148,7 +161,7 @@ function drawImageCentered(
   /** The canvas to draw on */
   canvas: HTMLCanvasElement | OffscreenCanvas,
 ) {
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
   // Get dimensions
   const imageWidth = image.width;
@@ -180,7 +193,8 @@ type UiElementId =
   | 'exit-demo'
   | 'image-chooser'
   | 'loading-depth-estimation'
-  | 'canvas';
+  | 'canvas'
+  | 'save-image-container';
 
 function hide(id: UiElementId) {
   document.getElementById(id)!.hidden = true;

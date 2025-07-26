@@ -96,6 +96,30 @@ a {
   width: 100%;
 }
 
+#save-image-container {
+  &:not([hidden]) {
+    display: flex;
+  }
+  justify-content: center;
+  margin-top: 20px;
+}
+
+#save-image {
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: Monaco, monospace;
+  font-size: 0.85rem;
+  transition: background-color 0.2s;
+}
+
+#save-image:hover {
+  background-color: #45a049;
+}
+
 label[for='choose-a-photo'] {
   cursor: pointer;
   background-color: #eee;
