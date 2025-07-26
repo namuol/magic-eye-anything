@@ -52,7 +52,13 @@ async function main() {
     const {depth} = (await depthEstimator(
       image,
     )) as DepthEstimationPipelineOutput;
-    const hiddenImageCanvas = new OffscreenCanvas(1280, 720);
+    const canvasElement = document.getElementById(
+      'canvas',
+    ) as HTMLCanvasElement;
+    const hiddenImageCanvas = new OffscreenCanvas(
+      canvasElement.width,
+      canvasElement.height,
+    );
     const hiddenImageCtx = hiddenImageCanvas.getContext('2d')!;
     {
       hiddenImageCtx.fillStyle = 'black';
@@ -74,35 +80,20 @@ async function main() {
         hiddenImageCanvas.height,
       ),
     );
+    const minDisparity = Math.floor(hiddenImageCanvas.width * 0.15);
+    const maxDisparity = Math.floor(hiddenImageCanvas.width * 0.2);
+    const disparityScale = 1;
+    const tileWidth = minDisparity;
+    const patternImage = (await RawImage.fromURL('emoji.png')).toCanvas();
+    const tileHeight = (tileWidth * patternImage.height) / patternImage.width;
+    const patternCanvas = new OffscreenCanvas(tileWidth, tileHeight);
+    fillImage(patternImage, patternCanvas, tileWidth);
 
-    const noiseCanvas = new OffscreenCanvas(
-      hiddenImageCanvas.width,
-      hiddenImageCanvas.height,
-    );
-    const noise = new PixelGrid(
-      noiseCanvas
+    const pattern = new PixelGrid(
+      patternCanvas
         .getContext('2d')!
-        .getImageData(0, 0, noiseCanvas.width, noiseCanvas.height),
+        .getImageData(0, 0, patternCanvas.width, patternCanvas.height),
     );
-
-    function makeNoise() {
-      for (let y = 0; y < noise.height; ++y) {
-        for (let x = 0; x < noise.width; ++x) {
-          // const c = Math.random() < 0.5 ? 255 : 0;
-          //
-          // const c = Math.floor(Math.random() * 256); noise.set(x, y, [c, c,
-          // c, 255]);
-
-          noise.set(x, y, [
-            Math.floor(Math.random() * 256),
-            Math.floor(Math.random() * 256),
-            Math.floor(Math.random() * 256),
-            255,
-          ]);
-        }
-      }
-    }
-    makeNoise();
 
     const outputCanvas = new OffscreenCanvas(
       hiddenImageCanvas.width,
@@ -113,15 +104,15 @@ async function main() {
         .getContext('2d')!
         .getImageData(0, 0, outputCanvas.width, outputCanvas.height),
     );
-    const minDisparity = Math.floor(hiddenImageCanvas.width * 0.15);
-    const maxDisparity = Math.floor(hiddenImageCanvas.width * 0.2);
 
     for (let y = 0; y < output.height; ++y) {
       for (let x = 0; x < output.width; ++x) {
         const disparity = hiddenImage.get(x, y)[0] / 255;
-        const offset = Math.floor(disparity * (maxDisparity - minDisparity));
+        const offset = Math.floor(
+          disparity * (maxDisparity - minDisparity) * disparityScale,
+        );
         if (x < minDisparity) {
-          output.set(x, y, noise.get((x + offset) % minDisparity, y));
+          output.set(x, y, pattern.get((x + offset) % minDisparity, y));
         } else {
           output.set(x, y, output.get(x + offset - minDisparity, y));
         }
@@ -181,6 +172,43 @@ function drawImageCentered(
   const y = (canvasHeight - scaledHeight) / 2;
 
   ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
+}
+
+/**
+ * Fills the canvas with the image, as a repeating pattern
+ */
+function fillImage(
+  image: HTMLCanvasElement | OffscreenCanvas,
+  canvas: HTMLCanvasElement | OffscreenCanvas,
+  /**
+   * The width of the tiles to use for the pattern; the height will be
+   * calculated to maintain the aspect ratio.
+   */
+  tileWidth: number,
+) {
+  const ctx = canvas.getContext('2d') as
+    | CanvasRenderingContext2D
+    | OffscreenCanvasRenderingContext2D;
+
+  // Calculate tile height to maintain aspect ratio
+  const tileHeight = (tileWidth * image.height) / image.width;
+
+  // Calculate how many tiles we need to fill the canvas
+  const tilesX = Math.ceil(canvas.width / tileWidth);
+  const tilesY = Math.ceil(canvas.height / tileHeight);
+
+  // Draw the image as a repeating pattern
+  for (let y = 0; y < tilesY; y++) {
+    for (let x = 0; x < tilesX; x++) {
+      ctx.drawImage(
+        image,
+        x * tileWidth,
+        y * tileHeight,
+        tileWidth,
+        tileHeight,
+      );
+    }
+  }
 }
 
 type UiElementId =

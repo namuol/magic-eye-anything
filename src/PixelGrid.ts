@@ -17,6 +17,8 @@ export class PixelGrid {
 
   /** Get pixel as [r, g, b, a]  */
   get(x: number, y: number): Pixel {
+    x = x % this.width;
+    y = y % this.height;
     const index = (y * this.width + x) * 4;
     return [
       this.data[index + 0] ?? 0x00,
