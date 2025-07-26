@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/magic-eye-any-picture/icon.png" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Autostereogram anything: Magic-eye any picture in your browser</title>
+  <script type="module" crossorigin src="/magic-eye-any-picture/assets/index-uQ7LVC8u.js"></script>
+  <link rel="stylesheet" crossorigin href="/magic-eye-any-picture/assets/index-CgKXzmZd.css">
+</head>
+
+<body>
+  <canvas id="canvas" width="1280" height="720" hidden></canvas>
+  <div id="title" hidden>
+    <h1>Autostereogram anything</h1>
+    <h2>"Magic-eye" any picture in your browser</h2>
+  </div>
+
+  <div id="messages">
+    <div id="preloader" class="message">
+      <p>Loading demo...</p>
+    </div>
+
+    <div id="loader" class="message" hidden>
+      <p>Initializing depth estimation model... this may take a while.</p>
+    </div>
+
+    <div id="loading-depth-estimation" class="message" hidden>
+      <p>Estimating depth...</p>
+    </div>
+
+    <div id="warning" class="message" hidden>
+      <p>⚠️ Seizure warning</p>
+      <p>
+        This demo includes flashing lights and patterns that may trigger
+        seizures in susceptible individuals.
+      </p>
+      <button id="run-demo" style="justify-self: flex-end">Run Demo</button>
+      <button id="exit-demo">Exit</button>
+    </div>
+
+    <div id="image-chooser" class="message" hidden>
+      <label for="choose-a-photo">Choose a photo</label>
+      <input type="file" id="choose-a-photo" accept="image/*" capture="user" style="display: none;" />
+    </div>
+  </div>
+
+  <a id="viewing-tips-link" href="https://github.com/namuol/magic-eye-yourself#viewing-tips" target="_blank"
+    rel="noopener" hidden>
+    How to view?
+  </a>
+
+  <div id="footer" hidden>
+    <p>
+      by <a href="https://lou.wtf">Lou Acresti</a> -
+      <a href="https://github.com/namuol/magic-eye-any-picture">Source code</a>
+    </p>
+  </div>
+
+</body>
+
+</html>
