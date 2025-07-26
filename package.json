@@ -1,0 +1,42 @@
+{
+  "name": "magic-eye-any-picture",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "prepare": "husky",
+    "deploy": "vite build && gh-pages -d dist"
+  },
+  "lint-staged": {
+    "**/*.{ts,tsx,json,css,md,html}": [
+      "eslint --fix",
+      "rewrap -i",
+      "prettier --write --ignore-unknown"
+    ]
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^3.6.1",
+    "@webgpu/types": "^0.1.64",
+    "lil-gui": "^0.20.0",
+    "stats.js": "^0.17.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.9.0",
+    "@stkb/rewrap": "^0.1.0",
+    "@types/three": "^0.178.0",
+    "eslint": "^9.9.0",
+    "eslint-plugin-simple-import-sort": "^12.1.1",
+    "gh-pages": "^6.3.0",
+    "globals": "^15.9.0",
+    "husky": "^9.0.11",
+    "lint-staged": "^15.2.7",
+    "prettier": "3.3.2",
+    "typescript": "^5.5.3",
+    "typescript-eslint": "^8.0.1",
+    "vite": "^5.4.1"
+  }
+}
