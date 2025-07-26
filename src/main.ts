@@ -3,8 +3,185 @@ import {
   pipeline,
   RawImage,
 } from '@huggingface/transformers';
+import GUI from 'lil-gui';
 
 import {PixelGrid} from './PixelGrid';
+
+// Available patterns in the public folder
+const PRESET_PATTERNS = [
+  {name: 'Carpet', url: 'carpet.jpg'},
+  {name: 'Circuit', url: 'circuit.png'},
+  {name: '90s', url: '90s.png'},
+  {name: 'Marbles', url: 'marbles.jpg'},
+  {name: 'Flowers', url: 'flowers.jpg'},
+  {name: 'Flowers (vintage)', url: 'vintage-flowers-sm.jpg'},
+] as const;
+
+// Global state for autostereogram generation
+const appState = {
+  disparityScale: 1,
+  selectedPattern: 'flowers.jpg',
+  customPatternFile: null as File | null,
+  currentImage: null as RawImage | null,
+  currentDepth: null as PixelGrid | null,
+  isProcessing: false,
+  gui: null as GUI | null,
+};
+
+/**
+ * Generates an autostereogram from the current depth image and pattern
+ */
+async function generateAutostereogram(): Promise<void> {
+  if (!appState.currentDepth || appState.isProcessing) {
+    return;
+  }
+
+  appState.isProcessing = true;
+  show('loading-depth-estimation');
+  hide('canvas');
+
+  try {
+    const canvasElement = document.getElementById(
+      'canvas',
+    ) as HTMLCanvasElement;
+    const hiddenImageCanvas = new OffscreenCanvas(
+      canvasElement.width,
+      canvasElement.height,
+    );
+
+    const minDisparity = Math.floor(hiddenImageCanvas.width * 0.15);
+    const maxDisparity = Math.floor(hiddenImageCanvas.width * 0.2);
+    const tileWidth = minDisparity;
+
+    // Load the pattern image
+    let patternImageUrl: string;
+    if (appState.customPatternFile) {
+      patternImageUrl = URL.createObjectURL(appState.customPatternFile);
+    } else {
+      patternImageUrl = appState.selectedPattern;
+    }
+
+    const patternImage = (await RawImage.fromURL(patternImageUrl)).toCanvas();
+    const tileHeight = (tileWidth * patternImage.height) / patternImage.width;
+    const patternCanvas = new OffscreenCanvas(tileWidth, tileHeight);
+    fillImage(patternImage, patternCanvas, tileWidth);
+
+    const pattern = new PixelGrid(
+      patternCanvas
+        .getContext('2d')!
+        .getImageData(0, 0, patternCanvas.width, patternCanvas.height),
+    );
+
+    const outputCanvas = new OffscreenCanvas(
+      hiddenImageCanvas.width,
+      hiddenImageCanvas.height,
+    );
+    const output = new PixelGrid(
+      outputCanvas
+        .getContext('2d')!
+        .getImageData(0, 0, outputCanvas.width, outputCanvas.height),
+    );
+
+    // Generate the autostereogram
+    for (let y = 0; y < output.height; ++y) {
+      for (let x = 0; x < output.width; ++x) {
+        const disparity = appState.currentDepth.get(x, y)[0] / 255;
+        const offset = Math.floor(
+          disparity * (maxDisparity - minDisparity) * appState.disparityScale,
+        );
+        if (x < minDisparity) {
+          output.set(x, y, pattern.get((x + offset) % minDisparity, y));
+        } else {
+          output.set(x, y, output.get(x + offset - minDisparity, y));
+        }
+      }
+    }
+
+    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    ctx.putImageData(output.imageData, 0, 0);
+
+    // Clean up object URL if we created one
+    if (appState.customPatternFile) {
+      URL.revokeObjectURL(patternImageUrl);
+    }
+
+    hide('loading-depth-estimation');
+    show('canvas');
+    show('save-image-container');
+  } catch (error) {
+    console.error('Error generating autostereogram:', error);
+    hide('loading-depth-estimation');
+  } finally {
+    appState.isProcessing = false;
+  }
+}
+
+/**
+ * Sets up the GUI controls
+ */
+function setupGUI(): void {
+  const gui = new GUI();
+  gui.title('Controls');
+
+  // Hide the GUI initially
+  gui.hide();
+
+  // Store GUI reference in app state
+  appState.gui = gui;
+
+  // Disparity scale slider
+  gui
+    .add(appState, 'disparityScale', 0.1, 1.75, 0.01)
+    .name('Disparity')
+    .onChange(
+      debounce(() => {
+        generateAutostereogram();
+      }, 1000),
+    );
+
+  // Pattern selection
+  const patternNames = PRESET_PATTERNS.reduce(
+    (acc, pattern) => {
+      acc[pattern.name] = pattern.url;
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
+
+  gui
+    .add(appState, 'selectedPattern', patternNames)
+    .name('Pattern')
+    .onChange(() => {
+      appState.customPatternFile = null;
+      generateAutostereogram();
+    });
+
+  // Custom pattern file input
+  const customPatternInput = document.createElement('input');
+  customPatternInput.type = 'file';
+  customPatternInput.accept = 'image/*';
+  customPatternInput.style.display = 'none';
+  document.body.appendChild(customPatternInput);
+
+  customPatternInput.addEventListener('change', (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (file) {
+      appState.customPatternFile = file;
+      generateAutostereogram();
+    }
+  });
+
+  gui
+    .add(
+      {uploadCustomPattern: () => customPatternInput.click()},
+      'uploadCustomPattern',
+    )
+    .name('Upload Custom Pattern');
+
+  // Re-render button
+  gui.add({render: () => generateAutostereogram()}, 'render').name('Re-render');
+}
 
 async function main() {
   hide('preloader');
@@ -33,6 +210,9 @@ async function main() {
   );
   hide('loader');
 
+  // Setup GUI controls (initially hidden)
+  setupGUI();
+
   show('image-chooser');
 
   // Wait for the user to choose a photo...
@@ -45,98 +225,80 @@ async function main() {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
+    // Hide GUI while processing new image
+    appState.gui?.hide();
+
     hide('image-chooser');
     show('loading-depth-estimation');
 
-    const image = await RawImage.fromBlob(file);
-    const {depth} = (await depthEstimator(
-      image,
-    )) as DepthEstimationPipelineOutput;
-    const canvasElement = document.getElementById(
-      'canvas',
-    ) as HTMLCanvasElement;
-    const hiddenImageCanvas = new OffscreenCanvas(
-      canvasElement.width,
-      canvasElement.height,
-    );
-    const hiddenImageCtx = hiddenImageCanvas.getContext('2d')!;
-    {
-      hiddenImageCtx.fillStyle = 'black';
-      hiddenImageCtx.fillRect(
-        0,
-        0,
-        hiddenImageCanvas.width,
-        hiddenImageCanvas.height,
+    try {
+      const image = await RawImage.fromBlob(file);
+      appState.currentImage = image;
+
+      const {depth} = (await depthEstimator(
+        image,
+      )) as DepthEstimationPipelineOutput;
+
+      const canvasElement = document.getElementById(
+        'canvas',
+      ) as HTMLCanvasElement;
+      const hiddenImageCanvas = new OffscreenCanvas(
+        canvasElement.width,
+        canvasElement.height,
       );
-      // Draw the image centered on the canvas
-      drawImageCentered(depth.toCanvas(), hiddenImageCanvas);
-    }
-
-    const hiddenImage = new PixelGrid(
-      hiddenImageCtx.getImageData(
-        0,
-        0,
-        hiddenImageCanvas.width,
-        hiddenImageCanvas.height,
-      ),
-    );
-    const minDisparity = Math.floor(hiddenImageCanvas.width * 0.15);
-    const maxDisparity = Math.floor(hiddenImageCanvas.width * 0.2);
-    const disparityScale = 1;
-    const tileWidth = minDisparity;
-    const patternImage = (await RawImage.fromURL('emoji.png')).toCanvas();
-    const tileHeight = (tileWidth * patternImage.height) / patternImage.width;
-    const patternCanvas = new OffscreenCanvas(tileWidth, tileHeight);
-    fillImage(patternImage, patternCanvas, tileWidth);
-
-    const pattern = new PixelGrid(
-      patternCanvas
-        .getContext('2d')!
-        .getImageData(0, 0, patternCanvas.width, patternCanvas.height),
-    );
-
-    const outputCanvas = new OffscreenCanvas(
-      hiddenImageCanvas.width,
-      hiddenImageCanvas.height,
-    );
-    const output = new PixelGrid(
-      outputCanvas
-        .getContext('2d')!
-        .getImageData(0, 0, outputCanvas.width, outputCanvas.height),
-    );
-
-    for (let y = 0; y < output.height; ++y) {
-      for (let x = 0; x < output.width; ++x) {
-        const disparity = hiddenImage.get(x, y)[0] / 255;
-        const offset = Math.floor(
-          disparity * (maxDisparity - minDisparity) * disparityScale,
+      const hiddenImageCtx = hiddenImageCanvas.getContext('2d')!;
+      {
+        hiddenImageCtx.fillStyle = 'black';
+        hiddenImageCtx.fillRect(
+          0,
+          0,
+          hiddenImageCanvas.width,
+          hiddenImageCanvas.height,
         );
-        if (x < minDisparity) {
-          output.set(x, y, pattern.get((x + offset) % minDisparity, y));
-        } else {
-          output.set(x, y, output.get(x + offset - minDisparity, y));
-        }
+        // Draw the image centered on the canvas
+        drawImageCentered(depth.toCanvas(), hiddenImageCanvas);
       }
+
+      // Store the depth data in app state
+      appState.currentDepth = new PixelGrid(
+        hiddenImageCtx.getImageData(
+          0,
+          0,
+          hiddenImageCanvas.width,
+          hiddenImageCanvas.height,
+        ),
+      );
+
+      // Generate the initial autostereogram
+      await generateAutostereogram();
+
+      // Show the GUI controls now that we have an image
+      appState.gui?.show();
+
+      hide('messages');
+
+      // Add save image functionality (only add once)
+      const saveButton = document.getElementById(
+        'save-image',
+      ) as HTMLButtonElement;
+
+      // Remove existing event listeners to prevent duplicates
+      const newSaveButton = saveButton.cloneNode(true) as HTMLButtonElement;
+      saveButton.parentNode?.replaceChild(newSaveButton, saveButton);
+
+      newSaveButton.addEventListener('click', () => {
+        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+        const link = document.createElement('a');
+        link.download = 'autostereogram.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    } catch (error) {
+      console.error('Error processing image:', error);
+      appState.gui?.hide();
+      hide('loading-depth-estimation');
+      show('image-chooser');
     }
-
-    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    const ctx = canvas.getContext('2d')!;
-    ctx.putImageData(output.imageData, 0, 0);
-
-    hide('messages');
-    show('canvas');
-    show('save-image-container');
-
-    // Add save image functionality
-    const saveButton = document.getElementById(
-      'save-image',
-    ) as HTMLButtonElement;
-    saveButton.addEventListener('click', () => {
-      const link = document.createElement('a');
-      link.download = 'autostereogram.png';
-      link.href = canvas.toDataURL();
-      link.click();
-    });
   });
 }
 
@@ -230,4 +392,12 @@ function hide(id: UiElementId) {
 
 function show(id: UiElementId) {
   document.getElementById(id)!.hidden = false;
+}
+
+function debounce(func: () => void, delay: number) {
+  let timeout: NodeJS.Timeout;
+  return () => {
+    clearTimeout(timeout);
+    timeout = setTimeout(func, delay);
+  };
 }

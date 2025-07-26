@@ -15,10 +15,6 @@ body {
   /* background-image: url('/90s.png'); background-repeat: repeat; */
 }
 
-canvas {
-  image-rendering: pixelated;
-}
-
 #messages {
   &:not([hidden]) {
     display: flex;
