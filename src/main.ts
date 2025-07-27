@@ -26,7 +26,7 @@ type AppState = {
   gui: GUI | null;
   fadeTimeout: NodeJS.Timeout | null;
   fadeAnimation: Animation | null;
-  showDepthMap: boolean;
+  displayMode: 'autostereogram' | 'depth-map' | 'source-image';
 };
 
 // Global state for autostereogram generation
@@ -41,7 +41,7 @@ const appState: AppState = {
   gui: null,
   fadeTimeout: null,
   fadeAnimation: null,
-  showDepthMap: false,
+  displayMode: 'autostereogram',
 };
 
 /**
@@ -129,34 +129,61 @@ async function generateAutostereogram(): Promise<void> {
 }
 
 /**
- * Updates which canvas is displayed based on the showDepthMap setting
+ * Updates which canvas is displayed based on the displayMode setting
  */
 function updateCanvasDisplay(): void {
   if (!appState.currentDepth) {
     return; // No depth data available yet
   }
 
-  if (appState.showDepthMap) {
-    hide('canvas');
-    show('depth-canvas');
+  switch (appState.displayMode) {
+    case 'depth-map': {
+      hide('canvas');
+      show('depth-canvas');
 
-    // Copy depth map to the visible canvas
-    const depthCanvasElement = document.getElementById(
-      'depth-canvas',
-    ) as HTMLCanvasElement;
-    const ctx = depthCanvasElement.getContext('2d')!;
-    ctx.putImageData(appState.currentDepth.imageData, 0, 0);
-  } else {
-    hide('depth-canvas');
-    show('canvas');
-
-    // Copy autostereogram to the visible canvas
-    if (appState.autostereogramImageData) {
-      const canvasElement = document.getElementById(
-        'canvas',
+      // Copy depth map to the visible canvas
+      const depthCanvasElement = document.getElementById(
+        'depth-canvas',
       ) as HTMLCanvasElement;
-      const ctx = canvasElement.getContext('2d')!;
-      ctx.putImageData(appState.autostereogramImageData, 0, 0);
+      const ctx = depthCanvasElement.getContext('2d')!;
+      ctx.putImageData(appState.currentDepth.imageData, 0, 0);
+      break;
+    }
+
+    case 'source-image': {
+      hide('depth-canvas');
+      show('canvas');
+
+      // Draw the original source image
+      if (appState.currentImage) {
+        const canvasElement = document.getElementById(
+          'canvas',
+        ) as HTMLCanvasElement;
+        const ctx = canvasElement.getContext('2d')!;
+
+        // Clear canvas
+        ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+
+        // Draw the source image centered
+        drawImageCentered(appState.currentImage.toCanvas(), canvasElement);
+      }
+      break;
+    }
+
+    case 'autostereogram':
+    default: {
+      hide('depth-canvas');
+      show('canvas');
+
+      // Copy autostereogram to the visible canvas
+      if (appState.autostereogramImageData) {
+        const canvasElement = document.getElementById(
+          'canvas',
+        ) as HTMLCanvasElement;
+        const ctx = canvasElement.getContext('2d')!;
+        ctx.putImageData(appState.autostereogramImageData, 0, 0);
+      }
+      break;
     }
   }
 }
@@ -222,10 +249,16 @@ function setupGUI(): void {
       }
     });
 
-  // Show depth map checkbox
+  // Display mode dropdown
+  const displayModeOptions = {
+    Autostereogram: 'autostereogram',
+    'Depth map': 'depth-map',
+    'Source image': 'source-image',
+  };
+
   gui
-    .add(appState, 'showDepthMap')
-    .name('Depth map')
+    .add(appState, 'displayMode', displayModeOptions)
+    .name('Display')
     .onChange(() => {
       updateCanvasDisplay();
     });
@@ -235,13 +268,17 @@ function setupGUI(): void {
     .add(
       {
         saveImage: () => {
-          const canvas = appState.showDepthMap
-            ? (document.getElementById('depth-canvas') as HTMLCanvasElement)
-            : (document.getElementById('canvas') as HTMLCanvasElement);
+          const canvas =
+            appState.displayMode === 'depth-map'
+              ? (document.getElementById('depth-canvas') as HTMLCanvasElement)
+              : (document.getElementById('canvas') as HTMLCanvasElement);
           const link = document.createElement('a');
-          link.download = appState.showDepthMap
-            ? 'depth-map.png'
-            : 'autostereogram.png';
+          link.download =
+            appState.displayMode === 'depth-map'
+              ? 'depth-map.png'
+              : appState.displayMode === 'source-image'
+                ? 'source-image.png'
+                : 'autostereogram.png';
           link.href = canvas.toDataURL();
           link.click();
         },
