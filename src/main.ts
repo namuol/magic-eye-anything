@@ -839,3 +839,11 @@ function resetFadeTimer(): void {
   // Start new fade timer
   startFadeTimer();
 }
+
+function handleError(event: Event) {
+  console.error(event);
+  alert('An unexpected error occurred. Refresh the page to try again.');
+}
+
+window.addEventListener('error', handleError);
+window.addEventListener('unhandledrejection', handleError);
