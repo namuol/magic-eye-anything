@@ -9,18 +9,31 @@ import {PixelGrid} from './PixelGrid';
 
 // Available patterns in the public folder
 const PRESET_PATTERNS = [
-  {name: 'Carpet', url: 'carpet.jpg'},
-  {name: 'Circuit', url: 'circuit.png'},
-  {name: '90s', url: '90s.png'},
   {name: 'Marbles', url: 'marbles.jpg'},
+  {name: 'Carpet', url: 'carpet.jpg'},
   {name: 'Flowers', url: 'flowers.jpg'},
   {name: 'Flowers (vintage)', url: 'vintage-flowers-sm.jpg'},
+  {name: '90s', url: '90s.png'},
+  {name: 'Circuit', url: 'circuit.png'},
 ] as const;
 
+type AppState = {
+  disparityScale: number;
+  selectedPattern: (typeof PRESET_PATTERNS)[number]['url'];
+  customPatternFile: File | null;
+  currentImage: RawImage | null;
+  currentDepth: PixelGrid | null;
+  isProcessing: boolean;
+  gui: GUI | null;
+  fadeTimeout: NodeJS.Timeout | null;
+  fadeAnimation: Animation | null;
+  showDepthMap: boolean;
+};
+
 // Global state for autostereogram generation
-const appState = {
+const appState: AppState = {
   disparityScale: 1,
-  selectedPattern: 'flowers.jpg',
+  selectedPattern: 'marbles.jpg',
   customPatternFile: null as File | null,
   currentImage: null as RawImage | null,
   currentDepth: null as PixelGrid | null,
@@ -28,6 +41,7 @@ const appState = {
   gui: null as GUI | null,
   fadeTimeout: null as NodeJS.Timeout | null,
   fadeAnimation: null as Animation | null,
+  showDepthMap: false,
 };
 
 /**
@@ -101,7 +115,13 @@ async function generateAutostereogram(): Promise<void> {
 
     const canvas = document.getElementById('canvas') as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
-    ctx.putImageData(output.imageData, 0, 0);
+
+    // Display either the depth map or the autostereogram based on the checkbox
+    if (appState.showDepthMap) {
+      ctx.putImageData(appState.currentDepth.imageData, 0, 0);
+    } else {
+      ctx.putImageData(output.imageData, 0, 0);
+    }
 
     // Clean up object URL if we created one
     if (appState.customPatternFile) {
@@ -179,6 +199,14 @@ function setupGUI(): void {
       }
     });
 
+  // Show depth map checkbox
+  gui
+    .add(appState, 'showDepthMap')
+    .name('Depth map')
+    .onChange(() => {
+      generateAutostereogram();
+    });
+
   // Save image button
   gui
     .add(
@@ -186,7 +214,9 @@ function setupGUI(): void {
         saveImage: () => {
           const canvas = document.getElementById('canvas') as HTMLCanvasElement;
           const link = document.createElement('a');
-          link.download = 'autostereogram.png';
+          link.download = appState.showDepthMap
+            ? 'depth-map.png'
+            : 'autostereogram.png';
           link.href = canvas.toDataURL();
           link.click();
         },
@@ -331,57 +361,101 @@ async function main() {
     hide('image-chooser');
     show('loading-depth-estimation');
 
-    try {
-      const image = await RawImage.fromBlob(file);
-      appState.currentImage = image;
+    const image = await RawImage.fromBlob(file);
+    appState.currentImage = image;
 
-      const {depth} = (await depthEstimator(
-        image,
-      )) as DepthEstimationPipelineOutput;
+    const {depth} = (await depthEstimator(
+      image,
+    )) as DepthEstimationPipelineOutput;
 
-      const canvasElement = document.getElementById(
-        'canvas',
-      ) as HTMLCanvasElement;
-      const hiddenImageCanvas = new OffscreenCanvas(
-        canvasElement.width,
-        canvasElement.height,
+    const canvasElement = document.getElementById(
+      'canvas',
+    ) as HTMLCanvasElement;
+    const hiddenImageCanvas = new OffscreenCanvas(
+      canvasElement.width,
+      canvasElement.height,
+    );
+    const hiddenImageCtx = hiddenImageCanvas.getContext('2d')!;
+    {
+      // Create a vertical gradient from black to white
+      const gradient = hiddenImageCtx.createLinearGradient(
+        0,
+        0,
+        0,
+        hiddenImageCanvas.height,
       );
-      const hiddenImageCtx = hiddenImageCanvas.getContext('2d')!;
+      gradient.addColorStop(0.25, '#000000');
+      gradient.addColorStop(1, '#333333');
+
+      // Fill the canvas with the gradient
+      hiddenImageCtx.fillStyle = gradient;
+      hiddenImageCtx.fillRect(
+        0,
+        0,
+        hiddenImageCanvas.width,
+        hiddenImageCanvas.height,
+      );
+
+      const depthCanvas = depth.toCanvas() as OffscreenCanvas;
+
       {
-        hiddenImageCtx.fillStyle = 'black';
-        hiddenImageCtx.fillRect(
+        const ctx = depthCanvas.getContext('2d')!;
+        // Alpha-fade our depth map with a radial gradient centered on the
+        // center of the image:
+
+        // Create a box gradient mask for feathering
+        const featherDistance =
+          Math.min(depthCanvas.width, depthCanvas.height) * 0.15;
+
+        // Create a horizontal gradient for left/right edges
+        const horizontalGradient = ctx.createLinearGradient(
           0,
           0,
-          hiddenImageCanvas.width,
-          hiddenImageCanvas.height,
+          depthCanvas.width,
+          0,
         );
-        // Draw the image centered on the canvas
-        drawImageCentered(depth.toCanvas(), hiddenImageCanvas);
+        horizontalGradient.addColorStop(0, 'black');
+        horizontalGradient.addColorStop(
+          featherDistance / depthCanvas.width,
+          'white',
+        );
+        horizontalGradient.addColorStop(
+          1 - featherDistance / depthCanvas.width,
+          'white',
+        );
+        horizontalGradient.addColorStop(1, 'black');
+
+        const originalGlobalCompositeOperation = ctx.globalCompositeOperation;
+
+        // Apply the horizontal gradient as a mask
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.fillStyle = horizontalGradient;
+        ctx.fillRect(0, 0, depthCanvas.width, depthCanvas.height);
+
+        ctx.globalCompositeOperation = originalGlobalCompositeOperation;
       }
 
-      // Store the depth data in app state
-      appState.currentDepth = new PixelGrid(
-        hiddenImageCtx.getImageData(
-          0,
-          0,
-          hiddenImageCanvas.width,
-          hiddenImageCanvas.height,
-        ),
-      );
-
-      // Generate the initial autostereogram
-      await generateAutostereogram();
-
-      // Show the GUI controls now that we have an image
-      appState.gui?.show();
-
-      hide('messages');
-    } catch (error) {
-      console.error('Error processing image:', error);
-      appState.gui?.hide();
-      hide('loading-depth-estimation');
-      show('image-chooser');
+      // Draw the image centered on the canvas
+      drawImageCentered(depthCanvas, hiddenImageCanvas);
     }
+
+    // Store the depth data in app state
+    appState.currentDepth = new PixelGrid(
+      hiddenImageCtx.getImageData(
+        0,
+        0,
+        hiddenImageCanvas.width,
+        hiddenImageCanvas.height,
+      ),
+    );
+
+    // Generate the initial autostereogram
+    await generateAutostereogram();
+
+    // Show the GUI controls now that we have an image
+    appState.gui?.show();
+
+    hide('messages');
   });
 }
 
@@ -416,7 +490,15 @@ function drawImageCentered(
   const x = (canvasWidth - scaledWidth) / 2;
   const y = (canvasHeight - scaledHeight) / 2;
 
+  const originalGlobalCompositeOperation = ctx.globalCompositeOperation;
+
+  // When blending, choose the brightest of source vs destination:
+  ctx.globalCompositeOperation = 'lighten';
+
   ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
+
+  // Reset blend mode to default
+  ctx.globalCompositeOperation = originalGlobalCompositeOperation;
 }
 
 /**
