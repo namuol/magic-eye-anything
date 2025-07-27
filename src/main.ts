@@ -81,9 +81,24 @@ async function generateAutostereogram(): Promise<void> {
   }
 
   const patternImage = (await RawImage.fromURL(patternImageUrl)).toCanvas();
-  const tileHeight = (tileWidth * patternImage.height) / patternImage.width;
-  const patternCanvas = new OffscreenCanvas(tileWidth, tileHeight);
+  const patternCanvas = new OffscreenCanvas(tileWidth, canvasElement.height);
   fillImage(patternImage, patternCanvas, tileWidth);
+  {
+    const ctx = patternCanvas.getContext('2d')!;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
+    ctx.lineWidth = 1;
+    {
+      ctx.font = '800 18px "Arial Black"';
+
+      const string = 'LOU.WTF';
+      ctx.fillText(string, 0, 40);
+      ctx.strokeText(string, 0, 40);
+
+      ctx.fillText(string, 0, canvasElement.height - 40);
+      ctx.strokeText(string, 0, canvasElement.height - 40);
+    }
+  }
 
   const pattern = new PixelGrid(
     patternCanvas
@@ -339,7 +354,7 @@ function setupGUI(): void {
   // Depth display mode dropdown
   const depthDisplayModeOptions = {
     Clamp: 'clamp',
-    Cutout: 'cutout',
+    // Cutout: 'cutout',
     Popout: 'popout',
   };
 
@@ -573,7 +588,7 @@ function drawImageCentered(
   image: HTMLCanvasElement | OffscreenCanvas,
   /** The canvas to draw on */
   canvas: HTMLCanvasElement | OffscreenCanvas,
-  depthDisplayMode: DepthDisplayMode = 'clamp',
+  depthDisplayMode: DepthDisplayMode = 'cutout',
 ) {
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
@@ -584,12 +599,12 @@ function drawImageCentered(
   const canvasHeight = canvas.height;
   const padding =
     depthDisplayMode === 'cutout' || depthDisplayMode === 'popout'
-      ? canvasWidth * 0.15
+      ? canvasWidth * 0.1
       : 0;
 
   // Calculate scale to fit the entire image
-  const scaleX = canvasWidth / (imageWidth + padding);
-  const scaleY = canvasHeight / (imageHeight + padding);
+  const scaleX = (canvasWidth - padding) / imageWidth;
+  const scaleY = (canvasHeight - padding) / imageHeight;
   const scale = Math.min(scaleX, scaleY);
 
   // Calculate centered position
