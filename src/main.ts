@@ -135,29 +135,12 @@ function setupGUI(): void {
   // Disparity scale slider
   gui
     .add(appState, 'disparityScale', 0.1, 1.75, 0.01)
-    .name('Disparity')
+    .name('Depth')
     .onChange(
       debounce(() => {
         generateAutostereogram();
       }, 1000),
     );
-
-  // Pattern selection
-  const patternNames = PRESET_PATTERNS.reduce(
-    (acc, pattern) => {
-      acc[pattern.name] = pattern.url;
-      return acc;
-    },
-    {} as Record<string, string>,
-  );
-
-  gui
-    .add(appState, 'selectedPattern', patternNames)
-    .name('Pattern')
-    .onChange(() => {
-      appState.customPatternFile = null;
-      generateAutostereogram();
-    });
 
   // Custom pattern file input
   const customPatternInput = document.createElement('input');
@@ -174,12 +157,27 @@ function setupGUI(): void {
     }
   });
 
+  // Pattern selection with custom option
+  const patternNames = PRESET_PATTERNS.reduce(
+    (acc, pattern) => {
+      acc[pattern.name] = pattern.url;
+      return acc;
+    },
+    {} as Record<string, string>,
+  );
+  patternNames['Upload...'] = 'custom';
+
   gui
-    .add(
-      {uploadCustomPattern: () => customPatternInput.click()},
-      'uploadCustomPattern',
-    )
-    .name('Upload Custom Pattern');
+    .add(appState, 'selectedPattern', patternNames)
+    .name('Pattern')
+    .onChange(() => {
+      if (appState.selectedPattern === 'custom') {
+        customPatternInput.click();
+      } else {
+        appState.customPatternFile = null;
+        generateAutostereogram();
+      }
+    });
 
   // Save image button
   gui
