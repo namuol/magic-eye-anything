@@ -68,7 +68,7 @@ a {
   top: 4px;
   border-radius: 10px;
   overflow: hidden;
-  /* max-width: 20ch; */
+  width: 40ch;
 
   & * {
     font-family: Monaco, monospace !important;

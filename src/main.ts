@@ -21,12 +21,14 @@ type AppState = {
   customPatternFile: File | null;
   currentImage: RawImage | null;
   currentDepth: PixelGrid | null;
+  originalDepthEstimation: RawImage | null;
   autostereogramImageData: ImageData | null;
   isProcessing: boolean;
   gui: GUI | null;
   fadeTimeout: NodeJS.Timeout | null;
   fadeAnimation: Animation | null;
   displayMode: 'autostereogram' | 'depth-map' | 'source-image';
+  depthDisplayMode: DepthDisplayMode;
 };
 
 // Global state for autostereogram generation
@@ -36,12 +38,14 @@ const appState: AppState = {
   customPatternFile: null,
   currentImage: null,
   currentDepth: null,
+  originalDepthEstimation: null,
   autostereogramImageData: null,
   isProcessing: false,
   gui: null,
   fadeTimeout: null,
   fadeAnimation: null,
   displayMode: 'autostereogram',
+  depthDisplayMode: 'clamp',
 };
 
 /**
@@ -141,6 +145,10 @@ function updateCanvasDisplay(): void {
       hide('canvas');
       show('depth-canvas');
 
+      // Regenerate depth canvas with current display mode and copy to visible
+      // canvas
+      regenerateDepthCanvasInternal();
+
       // Copy depth map to the visible canvas
       const depthCanvasElement = document.getElementById(
         'depth-canvas',
@@ -186,6 +194,71 @@ function updateCanvasDisplay(): void {
       break;
     }
   }
+}
+
+/**
+ * Regenerates the depth canvas with the current depth display mode
+ */
+function regenerateDepthCanvas(): void {
+  if (!appState.originalDepthEstimation || !appState.currentDepth) {
+    return; // No depth estimation data available
+  }
+
+  regenerateDepthCanvasInternal();
+
+  // Regenerate the autostereogram with the new depth data
+  generateAutostereogram();
+}
+
+/**
+ * Internal function to regenerate the depth canvas without triggering
+ * autostereogram generation
+ */
+function regenerateDepthCanvasInternal(): void {
+  if (!appState.originalDepthEstimation) {
+    return; // No depth estimation data available
+  }
+
+  const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+  const hiddenImageCanvas = new OffscreenCanvas(
+    canvasElement.width,
+    canvasElement.height,
+  );
+  const hiddenImageCtx = hiddenImageCanvas.getContext('2d')!;
+
+  // Clear the canvas with appropriate background based on depth display mode
+  if (appState.depthDisplayMode === 'popout') {
+    hiddenImageCtx.fillStyle = 'black';
+  } else if (appState.depthDisplayMode === 'cutout') {
+    hiddenImageCtx.fillStyle = 'white';
+  } else {
+    // clamp mode
+    hiddenImageCtx.fillStyle = 'black';
+  }
+
+  hiddenImageCtx.fillRect(
+    0,
+    0,
+    hiddenImageCanvas.width,
+    hiddenImageCanvas.height,
+  );
+
+  // Get the original depth estimation result
+  const depthCanvas =
+    appState.originalDepthEstimation.toCanvas() as OffscreenCanvas;
+
+  // Draw the depth image centered on the canvas with current depth display mode
+  drawImageCentered(depthCanvas, hiddenImageCanvas, appState.depthDisplayMode);
+
+  // Update the depth data in app state
+  appState.currentDepth = new PixelGrid(
+    hiddenImageCtx.getImageData(
+      0,
+      0,
+      hiddenImageCanvas.width,
+      hiddenImageCanvas.height,
+    ),
+  );
 }
 
 /**
@@ -263,6 +336,20 @@ function setupGUI(): void {
       updateCanvasDisplay();
     });
 
+  // Depth display mode dropdown
+  const depthDisplayModeOptions = {
+    Clamp: 'clamp',
+    Cutout: 'cutout',
+    Popout: 'popout',
+  };
+
+  gui
+    .add(appState, 'depthDisplayMode', depthDisplayModeOptions)
+    .name('Depth Style')
+    .onChange(() => {
+      regenerateDepthCanvas();
+    });
+
   // Save image button
   gui
     .add(
@@ -273,12 +360,7 @@ function setupGUI(): void {
               ? (document.getElementById('depth-canvas') as HTMLCanvasElement)
               : (document.getElementById('canvas') as HTMLCanvasElement);
           const link = document.createElement('a');
-          link.download =
-            appState.displayMode === 'depth-map'
-              ? 'depth-map.png'
-              : appState.displayMode === 'source-image'
-                ? 'source-image.png'
-                : 'autostereogram.png';
+          link.download = `${appState.displayMode}.png`;
           link.href = canvas.toDataURL();
           link.click();
         },
@@ -431,6 +513,9 @@ async function main() {
     )) as DepthEstimationPipelineOutput;
     hide('loading-depth-estimation');
 
+    // Store the original depth estimation for later regeneration
+    appState.originalDepthEstimation = depth;
+
     const canvasElement = document.getElementById(
       'canvas',
     ) as HTMLCanvasElement;
@@ -439,31 +524,22 @@ async function main() {
       canvasElement.height,
     );
     const hiddenImageCtx = hiddenImageCanvas.getContext('2d')!;
-    {
-      // Create a vertical gradient from black to white
-      const gradient = hiddenImageCtx.createLinearGradient(
-        0,
-        0,
-        0,
-        hiddenImageCanvas.height,
-      );
-      gradient.addColorStop(0.25, '#000000');
-      gradient.addColorStop(1, '#111111');
+    hiddenImageCtx.fillStyle = 'black';
+    hiddenImageCtx.fillRect(
+      0,
+      0,
+      hiddenImageCanvas.width,
+      hiddenImageCanvas.height,
+    );
 
-      // Fill the canvas with the gradient
-      hiddenImageCtx.fillStyle = gradient;
-      hiddenImageCtx.fillRect(
-        0,
-        0,
-        hiddenImageCanvas.width,
-        hiddenImageCanvas.height,
-      );
+    const depthCanvas = depth.toCanvas() as OffscreenCanvas;
 
-      const depthCanvas = depth.toCanvas() as OffscreenCanvas;
-
-      // Draw the image centered on the canvas
-      drawImageCentered(depthCanvas, hiddenImageCanvas);
-    }
+    // Draw the image centered on the canvas with current depth display mode
+    drawImageCentered(
+      depthCanvas,
+      hiddenImageCanvas,
+      appState.depthDisplayMode,
+    );
 
     // Store the depth data in app state
     appState.currentDepth = new PixelGrid(
@@ -485,6 +561,8 @@ async function main() {
 
 main();
 
+type DepthDisplayMode = 'clamp' | 'cutout' | 'popout';
+
 /**
  * Draws an image centered on a canvas with the correct aspect ratio, fitting
  * the entire picture. The left and right edges of the image should fill the
@@ -495,6 +573,7 @@ function drawImageCentered(
   image: HTMLCanvasElement | OffscreenCanvas,
   /** The canvas to draw on */
   canvas: HTMLCanvasElement | OffscreenCanvas,
+  depthDisplayMode: DepthDisplayMode = 'clamp',
 ) {
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 
@@ -503,10 +582,14 @@ function drawImageCentered(
   const imageHeight = image.height;
   const canvasWidth = canvas.width;
   const canvasHeight = canvas.height;
+  const padding =
+    depthDisplayMode === 'cutout' || depthDisplayMode === 'popout'
+      ? canvasWidth * 0.15
+      : 0;
 
   // Calculate scale to fit the entire image
-  const scaleX = canvasWidth / imageWidth;
-  const scaleY = canvasHeight / imageHeight;
+  const scaleX = canvasWidth / (imageWidth + padding);
+  const scaleY = canvasHeight / (imageHeight + padding);
   const scale = Math.min(scaleX, scaleY);
 
   // Calculate centered position
@@ -515,66 +598,73 @@ function drawImageCentered(
   const x = (canvasWidth - scaledWidth) / 2;
   const y = (canvasHeight - scaledHeight) / 2;
 
-  const originalGlobalCompositeOperation = ctx.globalCompositeOperation;
+  if (depthDisplayMode === 'popout') {
+    ctx.fillStyle = 'black';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  } else if (depthDisplayMode === 'cutout') {
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  }
 
-  // When blending, choose the brightest of source vs destination:
-  ctx.globalCompositeOperation = 'lighten';
+  const originalGlobalCompositeOperation = ctx.globalCompositeOperation;
 
   ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
 
-  // Extend the left edge of the image
-  ctx.drawImage(
-    image,
-    // sx,
-    0,
-    // sy,
-    y,
-    // sWidth,
-    1,
-    // sHeight,
-    imageHeight,
-    // dx,
-    0,
-    // dy,
-    0,
-    // dWidth,
-    x + 1,
-    // dHeight
-    canvasHeight,
-  );
+  if (depthDisplayMode === 'clamp') {
+    // Extend the left edge of the image
+    ctx.drawImage(
+      image,
+      // sx,
+      0,
+      // sy,
+      y,
+      // sWidth,
+      1,
+      // sHeight,
+      imageHeight,
+      // dx,
+      0,
+      // dy,
+      0,
+      // dWidth,
+      x + 1,
+      // dHeight
+      canvasHeight,
+    );
 
-  // Extend the right edge of the image
-  ctx.drawImage(
-    image,
-    // sx,
-    imageWidth - 1,
-    // sy,
-    y,
-    // sWidth,
-    1,
-    // sHeight,
-    imageHeight,
-    // dx,
-    x + scaledWidth - 1,
-    // dy,
-    0,
-    // dWidth,
-    x + 1,
-    // dHeight
-    canvasHeight,
-  );
+    // Extend the right edge of the image
+    ctx.drawImage(
+      image,
+      // sx,
+      imageWidth - 1,
+      // sy,
+      y,
+      // sWidth,
+      1,
+      // sHeight,
+      imageHeight,
+      // dx,
+      x + scaledWidth - 1,
+      // dy,
+      0,
+      // dWidth,
+      x + 1,
+      // dHeight
+      canvasHeight,
+    );
 
-  // Fade the left and right edges of the image with a horizontal gradient with
-  // a left, center, and right stop:
-  const gradient = ctx.createLinearGradient(0, 0, canvasWidth, 0);
-  gradient.addColorStop(0, '#555');
-  gradient.addColorStop(x / canvasWidth, 'white');
-  gradient.addColorStop((canvasWidth - x) / canvasWidth, 'white');
-  gradient.addColorStop(1, '#555');
+    // Fade the left and right edges of the image with a horizontal gradient
+    // with a left, center, and right stop:
+    const gradient = ctx.createLinearGradient(0, 0, canvasWidth, 0);
+    gradient.addColorStop(0, '#555');
+    gradient.addColorStop(x / canvasWidth, 'white');
+    gradient.addColorStop((canvasWidth - x) / canvasWidth, 'white');
+    gradient.addColorStop(1, '#555');
 
-  ctx.fillStyle = gradient;
-  ctx.globalCompositeOperation = 'multiply';
-  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+    ctx.fillStyle = gradient;
+    ctx.globalCompositeOperation = 'multiply';
+    ctx.fillRect(0, 0, canvasWidth, canvasHeight);
+  }
 
   // Reset blend mode to default
   ctx.globalCompositeOperation = originalGlobalCompositeOperation;
