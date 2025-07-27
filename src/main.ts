@@ -10,11 +10,9 @@ import {PixelGrid} from './PixelGrid';
 // Available patterns in the public folder
 const PRESET_PATTERNS = [
   {name: 'Marbles', url: 'marbles.jpg'},
-  {name: 'Carpet', url: 'carpet.jpg'},
   {name: 'Flowers', url: 'flowers.jpg'},
   {name: 'Flowers (vintage)', url: 'vintage-flowers-sm.jpg'},
   {name: '90s', url: '90s.png'},
-  {name: 'Circuit', url: 'circuit.png'},
 ] as const;
 
 type AppState = {
@@ -55,85 +53,79 @@ async function generateAutostereogram(): Promise<void> {
   }
 
   appState.isProcessing = true;
-  show('loading-depth-estimation');
+  show('generating-autostereogram');
+  show('messages');
   hide('canvas');
   hide('depth-canvas');
 
-  try {
-    const canvasElement = document.getElementById(
-      'canvas',
-    ) as HTMLCanvasElement;
-    const hiddenImageCanvas = new OffscreenCanvas(
-      canvasElement.width,
-      canvasElement.height,
-    );
+  const canvasElement = document.getElementById('canvas') as HTMLCanvasElement;
+  const hiddenImageCanvas = new OffscreenCanvas(
+    canvasElement.width,
+    canvasElement.height,
+  );
 
-    const minDisparity = Math.floor(hiddenImageCanvas.width * 0.15);
-    const maxDisparity = Math.floor(hiddenImageCanvas.width * 0.2);
-    const tileWidth = minDisparity;
+  const minDisparity = Math.floor(hiddenImageCanvas.width * 0.15);
+  const maxDisparity = Math.floor(hiddenImageCanvas.width * 0.2);
+  const tileWidth = minDisparity;
 
-    // Load the pattern image
-    let patternImageUrl: string;
-    if (appState.customPatternFile) {
-      patternImageUrl = URL.createObjectURL(appState.customPatternFile);
-    } else {
-      patternImageUrl = appState.selectedPattern;
-    }
+  // Load the pattern image
+  let patternImageUrl: string;
+  if (appState.customPatternFile) {
+    patternImageUrl = URL.createObjectURL(appState.customPatternFile);
+  } else {
+    patternImageUrl = appState.selectedPattern;
+  }
 
-    const patternImage = (await RawImage.fromURL(patternImageUrl)).toCanvas();
-    const tileHeight = (tileWidth * patternImage.height) / patternImage.width;
-    const patternCanvas = new OffscreenCanvas(tileWidth, tileHeight);
-    fillImage(patternImage, patternCanvas, tileWidth);
+  const patternImage = (await RawImage.fromURL(patternImageUrl)).toCanvas();
+  const tileHeight = (tileWidth * patternImage.height) / patternImage.width;
+  const patternCanvas = new OffscreenCanvas(tileWidth, tileHeight);
+  fillImage(patternImage, patternCanvas, tileWidth);
 
-    const pattern = new PixelGrid(
-      patternCanvas
-        .getContext('2d')!
-        .getImageData(0, 0, patternCanvas.width, patternCanvas.height),
-    );
+  const pattern = new PixelGrid(
+    patternCanvas
+      .getContext('2d')!
+      .getImageData(0, 0, patternCanvas.width, patternCanvas.height),
+  );
 
-    const outputCanvas = new OffscreenCanvas(
-      hiddenImageCanvas.width,
-      hiddenImageCanvas.height,
-    );
-    const output = new PixelGrid(
-      outputCanvas
-        .getContext('2d')!
-        .getImageData(0, 0, outputCanvas.width, outputCanvas.height),
-    );
+  const outputCanvas = new OffscreenCanvas(
+    hiddenImageCanvas.width,
+    hiddenImageCanvas.height,
+  );
+  const output = new PixelGrid(
+    outputCanvas
+      .getContext('2d')!
+      .getImageData(0, 0, outputCanvas.width, outputCanvas.height),
+  );
 
-    // Generate the autostereogram
-    for (let y = 0; y < output.height; ++y) {
-      for (let x = 0; x < output.width; ++x) {
-        const disparity = appState.currentDepth.get(x, y)[0] / 255;
-        const offset = Math.floor(
-          disparity * (maxDisparity - minDisparity) * appState.disparityScale,
-        );
-        if (x < minDisparity) {
-          output.set(x, y, pattern.get((x + offset) % minDisparity, y));
-        } else {
-          output.set(x, y, output.get(x + offset - minDisparity, y));
-        }
+  // Generate the autostereogram
+  for (let y = 0; y < output.height; ++y) {
+    for (let x = 0; x < output.width; ++x) {
+      const disparity = appState.currentDepth.get(x, y)[0] / 255;
+      const offset = Math.floor(
+        disparity * (maxDisparity - minDisparity) * appState.disparityScale,
+      );
+      if (x < minDisparity) {
+        output.set(x, y, pattern.get((x + offset) % minDisparity, y));
+      } else {
+        output.set(x, y, output.get(x + offset - minDisparity, y));
       }
     }
-
-    // Store the autostereogram image data in app state
-    appState.autostereogramImageData = output.imageData;
-
-    // Display the appropriate canvas based on current setting
-    updateCanvasDisplay();
-
-    // Clean up object URL if we created one
-    if (appState.customPatternFile) {
-      URL.revokeObjectURL(patternImageUrl);
-    }
-
-    hide('loading-depth-estimation');
-  } catch (error) {
-    console.error('Error generating autostereogram:', error);
-    hide('loading-depth-estimation');
-  } finally {
-    appState.isProcessing = false;
   }
+
+  // Store the autostereogram image data in app state
+  appState.autostereogramImageData = output.imageData;
+
+  // Display the appropriate canvas based on current setting
+  updateCanvasDisplay();
+
+  // Clean up object URL if we created one
+  if (appState.customPatternFile) {
+    URL.revokeObjectURL(patternImageUrl);
+  }
+
+  appState.isProcessing = false;
+  hide('messages');
+  hide('generating-autostereogram');
 }
 
 /**
@@ -400,6 +392,7 @@ async function main() {
     const {depth} = (await depthEstimator(
       image,
     )) as DepthEstimationPipelineOutput;
+    hide('loading-depth-estimation');
 
     const canvasElement = document.getElementById(
       'canvas',
@@ -431,43 +424,6 @@ async function main() {
 
       const depthCanvas = depth.toCanvas() as OffscreenCanvas;
 
-      {
-        const ctx = depthCanvas.getContext('2d')!;
-        // Alpha-fade our depth map with a radial gradient centered on the
-        // center of the image:
-
-        // Create a box gradient mask for feathering
-        const featherDistance =
-          Math.min(depthCanvas.width, depthCanvas.height) * 0.15;
-
-        // Create a horizontal gradient for left/right edges
-        const horizontalGradient = ctx.createLinearGradient(
-          0,
-          0,
-          depthCanvas.width,
-          0,
-        );
-        horizontalGradient.addColorStop(0, 'black');
-        horizontalGradient.addColorStop(
-          featherDistance / depthCanvas.width,
-          'white',
-        );
-        horizontalGradient.addColorStop(
-          1 - featherDistance / depthCanvas.width,
-          'white',
-        );
-        horizontalGradient.addColorStop(1, 'black');
-
-        const originalGlobalCompositeOperation = ctx.globalCompositeOperation;
-
-        // Apply the horizontal gradient as a mask
-        ctx.globalCompositeOperation = 'multiply';
-        ctx.fillStyle = horizontalGradient;
-        ctx.fillRect(0, 0, depthCanvas.width, depthCanvas.height);
-
-        ctx.globalCompositeOperation = originalGlobalCompositeOperation;
-      }
-
       // Draw the image centered on the canvas
       drawImageCentered(depthCanvas, hiddenImageCanvas);
     }
@@ -487,8 +443,6 @@ async function main() {
 
     // Show the GUI controls now that we have an image
     appState.gui?.show();
-
-    hide('messages');
   });
 }
 
@@ -496,7 +450,8 @@ main();
 
 /**
  * Draws an image centered on a canvas with the correct aspect ratio, fitting
- * the entire picture.
+ * the entire picture. The left and right edges of the image should fill the
+ * rest of the canvas.
  */
 function drawImageCentered(
   /** The RawImage to draw */
@@ -529,6 +484,60 @@ function drawImageCentered(
   ctx.globalCompositeOperation = 'lighten';
 
   ctx.drawImage(image, x, y, scaledWidth, scaledHeight);
+
+  // Extend the left edge of the image
+  ctx.drawImage(
+    image,
+    // sx,
+    0,
+    // sy,
+    y,
+    // sWidth,
+    1,
+    // sHeight,
+    imageHeight,
+    // dx,
+    0,
+    // dy,
+    0,
+    // dWidth,
+    x + 1,
+    // dHeight
+    canvasHeight,
+  );
+
+  // Extend the right edge of the image
+  ctx.drawImage(
+    image,
+    // sx,
+    imageWidth - 1,
+    // sy,
+    y,
+    // sWidth,
+    1,
+    // sHeight,
+    imageHeight,
+    // dx,
+    x + scaledWidth - 1,
+    // dy,
+    0,
+    // dWidth,
+    x + 1,
+    // dHeight
+    canvasHeight,
+  );
+
+  // Fade the left and right edges of the image with a horizontal gradient with
+  // a left, center, and right stop:
+  const gradient = ctx.createLinearGradient(0, 0, canvasWidth, 0);
+  gradient.addColorStop(0, '#555');
+  gradient.addColorStop(x / canvasWidth, 'white');
+  gradient.addColorStop((canvasWidth - x) / canvasWidth, 'white');
+  gradient.addColorStop(1, '#555');
+
+  ctx.fillStyle = gradient;
+  ctx.globalCompositeOperation = 'multiply';
+  ctx.fillRect(0, 0, canvasWidth, canvasHeight);
 
   // Reset blend mode to default
   ctx.globalCompositeOperation = originalGlobalCompositeOperation;
@@ -581,6 +590,7 @@ type UiElementId =
   | 'exit-demo'
   | 'image-chooser'
   | 'loading-depth-estimation'
+  | 'generating-autostereogram'
   | 'canvas'
   | 'depth-canvas';
 
