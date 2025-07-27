@@ -23,6 +23,7 @@ type AppState = {
   customPatternFile: File | null;
   currentImage: RawImage | null;
   currentDepth: PixelGrid | null;
+  autostereogramImageData: ImageData | null;
   isProcessing: boolean;
   gui: GUI | null;
   fadeTimeout: NodeJS.Timeout | null;
@@ -37,6 +38,7 @@ const appState: AppState = {
   customPatternFile: null,
   currentImage: null,
   currentDepth: null,
+  autostereogramImageData: null,
   isProcessing: false,
   gui: null,
   fadeTimeout: null,
@@ -55,6 +57,7 @@ async function generateAutostereogram(): Promise<void> {
   appState.isProcessing = true;
   show('loading-depth-estimation');
   hide('canvas');
+  hide('depth-canvas');
 
   try {
     const canvasElement = document.getElementById(
@@ -113,15 +116,11 @@ async function generateAutostereogram(): Promise<void> {
       }
     }
 
-    const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-    const ctx = canvas.getContext('2d')!;
+    // Store the autostereogram image data in app state
+    appState.autostereogramImageData = output.imageData;
 
-    // Display either the depth map or the autostereogram based on the checkbox
-    if (appState.showDepthMap) {
-      ctx.putImageData(appState.currentDepth.imageData, 0, 0);
-    } else {
-      ctx.putImageData(output.imageData, 0, 0);
-    }
+    // Display the appropriate canvas based on current setting
+    updateCanvasDisplay();
 
     // Clean up object URL if we created one
     if (appState.customPatternFile) {
@@ -129,12 +128,44 @@ async function generateAutostereogram(): Promise<void> {
     }
 
     hide('loading-depth-estimation');
-    show('canvas');
   } catch (error) {
     console.error('Error generating autostereogram:', error);
     hide('loading-depth-estimation');
   } finally {
     appState.isProcessing = false;
+  }
+}
+
+/**
+ * Updates which canvas is displayed based on the showDepthMap setting
+ */
+function updateCanvasDisplay(): void {
+  if (!appState.currentDepth) {
+    return; // No depth data available yet
+  }
+
+  if (appState.showDepthMap) {
+    hide('canvas');
+    show('depth-canvas');
+
+    // Copy depth map to the visible canvas
+    const depthCanvasElement = document.getElementById(
+      'depth-canvas',
+    ) as HTMLCanvasElement;
+    const ctx = depthCanvasElement.getContext('2d')!;
+    ctx.putImageData(appState.currentDepth.imageData, 0, 0);
+  } else {
+    hide('depth-canvas');
+    show('canvas');
+
+    // Copy autostereogram to the visible canvas
+    if (appState.autostereogramImageData) {
+      const canvasElement = document.getElementById(
+        'canvas',
+      ) as HTMLCanvasElement;
+      const ctx = canvasElement.getContext('2d')!;
+      ctx.putImageData(appState.autostereogramImageData, 0, 0);
+    }
   }
 }
 
@@ -204,7 +235,7 @@ function setupGUI(): void {
     .add(appState, 'showDepthMap')
     .name('Depth map')
     .onChange(() => {
-      generateAutostereogram();
+      updateCanvasDisplay();
     });
 
   // Save image button
@@ -212,7 +243,9 @@ function setupGUI(): void {
     .add(
       {
         saveImage: () => {
-          const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+          const canvas = appState.showDepthMap
+            ? (document.getElementById('depth-canvas') as HTMLCanvasElement)
+            : (document.getElementById('canvas') as HTMLCanvasElement);
           const link = document.createElement('a');
           link.download = appState.showDepthMap
             ? 'depth-map.png'
@@ -385,7 +418,7 @@ async function main() {
         hiddenImageCanvas.height,
       );
       gradient.addColorStop(0.25, '#000000');
-      gradient.addColorStop(1, '#333333');
+      gradient.addColorStop(1, '#111111');
 
       // Fill the canvas with the gradient
       hiddenImageCtx.fillStyle = gradient;
@@ -548,7 +581,8 @@ type UiElementId =
   | 'exit-demo'
   | 'image-chooser'
   | 'loading-depth-estimation'
-  | 'canvas';
+  | 'canvas'
+  | 'depth-canvas';
 
 function hide(id: UiElementId) {
   document.getElementById(id)!.hidden = true;
