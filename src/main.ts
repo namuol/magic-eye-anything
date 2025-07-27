@@ -19,7 +19,7 @@ const PRESET_PATTERNS = [
 
 type AppState = {
   disparityScale: number;
-  selectedPattern: (typeof PRESET_PATTERNS)[number]['url'];
+  selectedPattern: (typeof PRESET_PATTERNS)[number]['url'] | 'custom';
   customPatternFile: File | null;
   currentImage: RawImage | null;
   currentDepth: PixelGrid | null;
@@ -34,13 +34,13 @@ type AppState = {
 const appState: AppState = {
   disparityScale: 1,
   selectedPattern: 'marbles.jpg',
-  customPatternFile: null as File | null,
-  currentImage: null as RawImage | null,
-  currentDepth: null as PixelGrid | null,
+  customPatternFile: null,
+  currentImage: null,
+  currentDepth: null,
   isProcessing: false,
-  gui: null as GUI | null,
-  fadeTimeout: null as NodeJS.Timeout | null,
-  fadeAnimation: null as Animation | null,
+  gui: null,
+  fadeTimeout: null,
+  fadeAnimation: null,
   showDepthMap: false,
 };
 
