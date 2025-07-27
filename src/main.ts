@@ -92,11 +92,16 @@ async function generateAutostereogram(): Promise<void> {
       ctx.font = '800 18px "Arial Black"';
 
       const string = 'LOU.WTF';
+      const stringWidth = ctx.measureText(string).width;
       ctx.fillText(string, 0, 40);
       ctx.strokeText(string, 0, 40);
 
-      ctx.fillText(string, 0, canvasElement.height - 40);
-      ctx.strokeText(string, 0, canvasElement.height - 40);
+      ctx.fillText(string, tileWidth - stringWidth, canvasElement.height - 40);
+      ctx.strokeText(
+        string,
+        tileWidth - stringWidth,
+        canvasElement.height - 40,
+      );
     }
   }
 
@@ -110,6 +115,9 @@ async function generateAutostereogram(): Promise<void> {
     hiddenImageCanvas.width,
     hiddenImageCanvas.height,
   );
+
+  fillImage(patternCanvas, outputCanvas, tileWidth);
+
   const output = new PixelGrid(
     outputCanvas
       .getContext('2d')!
@@ -354,7 +362,7 @@ function setupGUI(): void {
   // Depth display mode dropdown
   const depthDisplayModeOptions = {
     Clamp: 'clamp',
-    // Cutout: 'cutout',
+    Cutout: 'cutout',
     Popout: 'popout',
   };
 
