@@ -26,6 +26,8 @@ const appState = {
   currentDepth: null as PixelGrid | null,
   isProcessing: false,
   gui: null as GUI | null,
+  fadeTimeout: null as NodeJS.Timeout | null,
+  fadeAnimation: null as Animation | null,
 };
 
 /**
@@ -108,7 +110,6 @@ async function generateAutostereogram(): Promise<void> {
 
     hide('loading-depth-estimation');
     show('canvas');
-    show('save-image-container');
   } catch (error) {
     console.error('Error generating autostereogram:', error);
     hide('loading-depth-estimation');
@@ -122,6 +123,7 @@ async function generateAutostereogram(): Promise<void> {
  */
 function setupGUI(): void {
   const gui = new GUI();
+  gui.close();
   gui.title('Controls');
 
   // Hide the GUI initially
@@ -179,8 +181,108 @@ function setupGUI(): void {
     )
     .name('Upload Custom Pattern');
 
-  // Re-render button
-  gui.add({render: () => generateAutostereogram()}, 'render').name('Re-render');
+  // Save image button
+  gui
+    .add(
+      {
+        saveImage: () => {
+          const canvas = document.getElementById('canvas') as HTMLCanvasElement;
+          const link = document.createElement('a');
+          link.download = 'autostereogram.png';
+          link.href = canvas.toDataURL();
+          link.click();
+        },
+      },
+      'saveImage',
+    )
+    .name('Save Image');
+
+  // Add event listeners for fade functionality
+  const guiElement = gui.domElement;
+
+  // Reset fade timer on mouse enter
+  guiElement.addEventListener('mouseenter', resetFadeTimer);
+
+  // Reset fade timer on any interaction with GUI elements
+  guiElement.addEventListener('click', resetFadeTimer);
+  guiElement.addEventListener('input', resetFadeTimer);
+  guiElement.addEventListener('change', resetFadeTimer);
+  guiElement.addEventListener('touchstart', resetFadeTimer);
+  guiElement.addEventListener('touchend', resetFadeTimer);
+
+  // Start fade timer when GUI is shown
+  const originalShow = gui.show.bind(gui);
+  gui.show = (show?: boolean) => {
+    const result = originalShow(show);
+    if (show !== false) {
+      startFadeTimer();
+    }
+    return result;
+  };
+
+  // Clear fade timer when GUI is hidden
+  const originalHide = gui.hide.bind(gui);
+  gui.hide = () => {
+    const result = originalHide();
+    if (appState.fadeTimeout) {
+      clearTimeout(appState.fadeTimeout);
+      appState.fadeTimeout = null;
+    }
+    if (appState.fadeAnimation) {
+      appState.fadeAnimation.cancel();
+      appState.fadeAnimation = null;
+    }
+    return result;
+  };
+
+  // Watch for expanded state changes
+  const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+      if (
+        mutation.type === 'attributes' &&
+        mutation.attributeName === 'class'
+      ) {
+        const target = mutation.target as Element;
+        if (target.classList.contains('expanded')) {
+          // GUI is expanded, cancel fade
+          if (appState.fadeTimeout) {
+            clearTimeout(appState.fadeTimeout);
+            appState.fadeTimeout = null;
+          }
+          if (appState.fadeAnimation) {
+            appState.fadeAnimation.cancel();
+            appState.fadeAnimation = null;
+          }
+          guiElement.style.opacity = '1';
+        } else {
+          // GUI is collapsed, start fade timer
+          startFadeTimer();
+        }
+      }
+    });
+  });
+
+  observer.observe(guiElement, {attributes: true, attributeFilter: ['class']});
+
+  // Add global mouse move listener to reset fade timer when mouse is near GUI
+  document.addEventListener('mousemove', (e) => {
+    if (!appState.gui) return;
+
+    const rect = guiElement.getBoundingClientRect();
+    const margin = 50; // 50px margin around GUI
+
+    if (
+      e.clientX >= rect.left - margin &&
+      e.clientX <= rect.right + margin &&
+      e.clientY >= rect.top - margin &&
+      e.clientY <= rect.bottom + margin
+    ) {
+      resetFadeTimer();
+    }
+  });
+
+  document.addEventListener('touchstart', resetFadeTimer);
+  document.addEventListener('click', resetFadeTimer);
 }
 
 async function main() {
@@ -276,23 +378,6 @@ async function main() {
       appState.gui?.show();
 
       hide('messages');
-
-      // Add save image functionality (only add once)
-      const saveButton = document.getElementById(
-        'save-image',
-      ) as HTMLButtonElement;
-
-      // Remove existing event listeners to prevent duplicates
-      const newSaveButton = saveButton.cloneNode(true) as HTMLButtonElement;
-      saveButton.parentNode?.replaceChild(newSaveButton, saveButton);
-
-      newSaveButton.addEventListener('click', () => {
-        const canvas = document.getElementById('canvas') as HTMLCanvasElement;
-        const link = document.createElement('a');
-        link.download = 'autostereogram.png';
-        link.href = canvas.toDataURL();
-        link.click();
-      });
     } catch (error) {
       console.error('Error processing image:', error);
       appState.gui?.hide();
@@ -383,8 +468,7 @@ type UiElementId =
   | 'exit-demo'
   | 'image-chooser'
   | 'loading-depth-estimation'
-  | 'canvas'
-  | 'save-image-container';
+  | 'canvas';
 
 function hide(id: UiElementId) {
   document.getElementById(id)!.hidden = true;
@@ -400,4 +484,84 @@ function debounce(func: () => void, delay: number) {
     clearTimeout(timeout);
     timeout = setTimeout(func, delay);
   };
+}
+
+/**
+ * Starts the fade-out timer for the GUI controls
+ */
+function startFadeTimer(): void {
+  if (!appState.gui) return;
+  if (!appState.gui.domElement.classList.contains('closed')) return;
+
+  // Clear any existing fade timeout
+  if (appState.fadeTimeout) {
+    clearTimeout(appState.fadeTimeout);
+  }
+
+  // Clear any existing fade animation
+  if (appState.fadeAnimation) {
+    appState.fadeAnimation.cancel();
+  }
+
+  // Check if GUI is expanded (has the 'expanded' class)
+  const guiElement = appState.gui.domElement;
+  if (guiElement.classList.contains('expanded')) {
+    return; // Don't fade if expanded
+  }
+
+  // Set opacity to 1 (fully visible)
+  guiElement.style.opacity = '1';
+
+  // Start fade timer
+  appState.fadeTimeout = setTimeout(() => {
+    fadeOutGUI();
+  }, 3000); // 3 second delay
+}
+
+/**
+ * Fades out the GUI controls over 2 seconds
+ */
+function fadeOutGUI(): void {
+  if (!appState.gui) return;
+
+  const guiElement = appState.gui.domElement;
+
+  // Don't fade if expanded
+  if (guiElement.classList.contains('expanded')) {
+    return;
+  }
+
+  // Create fade animation
+  appState.fadeAnimation = guiElement.animate(
+    [{opacity: '1'}, {opacity: '0.1'}],
+    {
+      duration: 2000, // 2 seconds
+      easing: 'ease-out',
+      fill: 'forwards',
+    },
+  );
+}
+
+/**
+ * Resets the fade timer and makes GUI fully visible
+ */
+function resetFadeTimer(): void {
+  if (!appState.gui) return;
+
+  // Clear existing timeout and animation
+  if (appState.fadeTimeout) {
+    clearTimeout(appState.fadeTimeout);
+    appState.fadeTimeout = null;
+  }
+
+  if (appState.fadeAnimation) {
+    appState.fadeAnimation.cancel();
+    appState.fadeAnimation = null;
+  }
+
+  // Make GUI fully visible
+  appState.gui.domElement.style.opacity = '1';
+
+  // Start new fade timer
+  startFadeTimer();
 }
