@@ -428,6 +428,8 @@ function setupGUI(): void {
   gui.show = (show?: boolean) => {
     const result = originalShow(show);
     if (show !== false) {
+      document.body.classList.remove('gui-faded');
+      document.body.classList.add('gui-visible');
       startFadeTimer();
     }
     return result;
@@ -445,6 +447,8 @@ function setupGUI(): void {
       appState.fadeAnimations.forEach((animation) => animation.cancel());
       appState.fadeAnimations = null;
     }
+    // Remove cursor classes when GUI is hidden
+    document.body.classList.remove('gui-faded', 'gui-visible');
     return result;
   };
 
@@ -468,6 +472,8 @@ function setupGUI(): void {
           }
           guiElement.style.opacity = '1';
           document.getElementById('viewing-tips-link')!.style.opacity = '1';
+          document.body.classList.remove('gui-faded');
+          document.body.classList.add('gui-visible');
         } else {
           // GUI is collapsed, start fade timer
           startFadeTimer();
@@ -828,6 +834,10 @@ function fadeOutGUI(): void {
     return;
   }
 
+  // Hide cursor and add faded class
+  document.body.classList.remove('gui-visible');
+  document.body.classList.add('gui-faded');
+
   // Create fade animation
   appState.fadeAnimations = [];
   [guiElement, document.getElementById('viewing-tips-link')!].forEach(
@@ -860,7 +870,9 @@ function resetFadeTimer(): void {
     appState.fadeAnimations = null;
   }
 
-  // Make GUI fully visible
+  // Show cursor and make GUI fully visible
+  document.body.classList.remove('gui-faded');
+  document.body.classList.add('gui-visible');
   appState.gui.domElement.style.opacity = '1';
 
   // Start new fade timer

@@ -18,6 +18,15 @@ body {
   /* background-image: url('/90s.png'); background-repeat: repeat; */
 }
 
+/* Cursor visibility based on GUI state */
+body.gui-faded {
+  cursor: none;
+}
+
+body.gui-visible {
+  cursor: default;
+}
+
 #messages {
   &:not([hidden]) {
     display: flex;
