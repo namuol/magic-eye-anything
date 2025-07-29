@@ -89,7 +89,8 @@ async function generateAutostereogram(): Promise<void> {
     ctx.strokeStyle = 'rgba(0, 0, 0, 0.75)';
     ctx.lineWidth = 1;
     {
-      ctx.font = '800 18px "Arial Black"';
+      ctx.font =
+        '800 18px "Arial Black", "Helvetica Black", "Helvetica Neue", Helvetica, Arial, sans-serif';
 
       const string = 'LOU.WTF';
       const stringWidth = ctx.measureText(string).width;
@@ -496,17 +497,6 @@ async function main() {
       }
     })();
 
-  show('loader');
-  const depthEstimator = await pipeline(
-    'depth-estimation',
-    'onnx-community/depth-anything-v2-small',
-    {
-      dtype: hasFp16 ? 'fp16' : undefined,
-      device: hasWebGPU ? 'webgpu' : undefined,
-    },
-  );
-  hide('loader');
-
   // Setup GUI controls (initially hidden)
   setupGUI();
 
@@ -526,6 +516,18 @@ async function main() {
     appState.gui?.hide();
 
     hide('image-chooser');
+
+    show('loader');
+    const depthEstimator = await pipeline(
+      'depth-estimation',
+      'onnx-community/depth-anything-v2-small',
+      {
+        dtype: hasFp16 ? 'fp16' : undefined,
+        device: hasWebGPU ? 'webgpu' : undefined,
+      },
+    );
+    hide('loader');
+
     show('loading-depth-estimation');
 
     const image = await RawImage.fromBlob(file);
@@ -596,7 +598,7 @@ function drawImageCentered(
   image: HTMLCanvasElement | OffscreenCanvas,
   /** The canvas to draw on */
   canvas: HTMLCanvasElement | OffscreenCanvas,
-  depthDisplayMode: DepthDisplayMode = 'cutout',
+  depthDisplayMode: null | DepthDisplayMode = null,
 ) {
   const ctx = canvas.getContext('2d') as CanvasRenderingContext2D;
 

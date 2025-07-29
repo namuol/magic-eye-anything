@@ -1,10 +1,13 @@
+:root {
+  --font-family: Monaco, Inconsolata, monospace;
+}
 body,
 html {
   margin: 0;
   background-color: #333;
   overflow: hidden;
   color: white;
-  font-family: Monaco, monospace;
+  font-family: var(--font-family);
 }
 
 body {
@@ -71,7 +74,7 @@ a {
   width: 40ch;
 
   & * {
-    font-family: Monaco, monospace !important;
+    font-family: var(--font-family) !important;
     font-size: 0.85rem !important;
     font-weight: normal !important;
     color: white !important;
@@ -102,5 +105,5 @@ label[for='choose-a-photo'] {
   display: inline-block;
   margin-bottom: 10px;
   font-size: 0.85rem;
-  font-family: Monaco, monospace;
+  font-family: var(--font-family);
 }
