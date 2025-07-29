@@ -26,9 +26,10 @@ type AppState = {
   isProcessing: boolean;
   gui: GUI | null;
   fadeTimeout: NodeJS.Timeout | null;
-  fadeAnimation: Animation | null;
+  fadeAnimations: Animation[] | null;
   displayMode: 'autostereogram' | 'depth-map' | 'source-image';
   depthDisplayMode: DepthDisplayMode;
+  watermark: string;
 };
 
 // Global state for autostereogram generation
@@ -43,9 +44,10 @@ const appState: AppState = {
   isProcessing: false,
   gui: null,
   fadeTimeout: null,
-  fadeAnimation: null,
+  fadeAnimations: null,
   displayMode: 'autostereogram',
   depthDisplayMode: 'clamp',
+  watermark: 'LOU.WTF',
 };
 
 /**
@@ -92,14 +94,17 @@ async function generateAutostereogram(): Promise<void> {
       ctx.font =
         '800 18px "Arial Black", "Helvetica Black", "Helvetica Neue", Helvetica, Arial, sans-serif';
 
-      const string = 'LOU.WTF';
-      const stringWidth = ctx.measureText(string).width;
-      ctx.fillText(string, 0, 40);
-      ctx.strokeText(string, 0, 40);
+      const stringWidth = ctx.measureText(appState.watermark).width;
+      ctx.fillText(appState.watermark, 0, 40);
+      ctx.strokeText(appState.watermark, 0, 40);
 
-      ctx.fillText(string, tileWidth - stringWidth, canvasElement.height - 40);
+      ctx.fillText(
+        appState.watermark,
+        tileWidth - stringWidth,
+        canvasElement.height - 40,
+      );
       ctx.strokeText(
-        string,
+        appState.watermark,
         tileWidth - stringWidth,
         canvasElement.height - 40,
       );
@@ -354,6 +359,15 @@ function setupGUI(): void {
   };
 
   gui
+    .add(appState, 'watermark')
+    .name('Watermark')
+    .onChange(
+      debounce(() => {
+        generateAutostereogram();
+      }, 1000),
+    );
+
+  gui
     .add(appState, 'displayMode', displayModeOptions)
     .name('Display')
     .onChange(() => {
@@ -406,6 +420,9 @@ function setupGUI(): void {
   guiElement.addEventListener('touchstart', resetFadeTimer);
   guiElement.addEventListener('touchend', resetFadeTimer);
 
+  // Reset fade timer on mouse move
+  document.addEventListener('mousemove', resetFadeTimer);
+
   // Start fade timer when GUI is shown
   const originalShow = gui.show.bind(gui);
   gui.show = (show?: boolean) => {
@@ -424,9 +441,9 @@ function setupGUI(): void {
       clearTimeout(appState.fadeTimeout);
       appState.fadeTimeout = null;
     }
-    if (appState.fadeAnimation) {
-      appState.fadeAnimation.cancel();
-      appState.fadeAnimation = null;
+    if (appState.fadeAnimations) {
+      appState.fadeAnimations.forEach((animation) => animation.cancel());
+      appState.fadeAnimations = null;
     }
     return result;
   };
@@ -445,11 +462,12 @@ function setupGUI(): void {
             clearTimeout(appState.fadeTimeout);
             appState.fadeTimeout = null;
           }
-          if (appState.fadeAnimation) {
-            appState.fadeAnimation.cancel();
-            appState.fadeAnimation = null;
+          if (appState.fadeAnimations) {
+            appState.fadeAnimations.forEach((animation) => animation.cancel());
+            appState.fadeAnimations = null;
           }
           guiElement.style.opacity = '1';
+          document.getElementById('viewing-tips-link')!.style.opacity = '1';
         } else {
           // GUI is collapsed, start fade timer
           startFadeTimer();
@@ -581,6 +599,7 @@ async function main() {
 
     // Show the GUI controls now that we have an image
     appState.gui?.show();
+    show('viewing-tips-link');
   });
 }
 
@@ -744,7 +763,8 @@ type UiElementId =
   | 'loading-depth-estimation'
   | 'generating-autostereogram'
   | 'canvas'
-  | 'depth-canvas';
+  | 'depth-canvas'
+  | 'viewing-tips-link';
 
 function hide(id: UiElementId) {
   document.getElementById(id)!.hidden = true;
@@ -775,8 +795,8 @@ function startFadeTimer(): void {
   }
 
   // Clear any existing fade animation
-  if (appState.fadeAnimation) {
-    appState.fadeAnimation.cancel();
+  if (appState.fadeAnimations) {
+    appState.fadeAnimations.forEach((animation) => animation.cancel());
   }
 
   // Check if GUI is expanded (has the 'expanded' class)
@@ -787,6 +807,7 @@ function startFadeTimer(): void {
 
   // Set opacity to 1 (fully visible)
   guiElement.style.opacity = '1';
+  document.getElementById('viewing-tips-link')!.style.opacity = '1';
 
   // Start fade timer
   appState.fadeTimeout = setTimeout(() => {
@@ -808,12 +829,16 @@ function fadeOutGUI(): void {
   }
 
   // Create fade animation
-  appState.fadeAnimation = guiElement.animate(
-    [{opacity: '1'}, {opacity: '0.1'}],
-    {
-      duration: 2000, // 2 seconds
-      easing: 'ease-out',
-      fill: 'forwards',
+  appState.fadeAnimations = [];
+  [guiElement, document.getElementById('viewing-tips-link')!].forEach(
+    (element) => {
+      appState.fadeAnimations!.push(
+        element.animate([{opacity: '1'}, {opacity: '0.1'}], {
+          duration: 2000, // 2 seconds
+          easing: 'ease-out',
+          fill: 'forwards',
+        }),
+      );
     },
   );
 }
@@ -830,9 +855,9 @@ function resetFadeTimer(): void {
     appState.fadeTimeout = null;
   }
 
-  if (appState.fadeAnimation) {
-    appState.fadeAnimation.cancel();
-    appState.fadeAnimation = null;
+  if (appState.fadeAnimations) {
+    appState.fadeAnimations.forEach((animation) => animation.cancel());
+    appState.fadeAnimations = null;
   }
 
   // Make GUI fully visible
