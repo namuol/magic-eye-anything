@@ -8,7 +8,11 @@ to produce the input depth map.
 
 [**Online demo**](https://namuol.github.io/magic-eye-anything)
 
-![](/screenshot.png)
+### Screenshots
+
+![](/screenshot-autostereogram.jpg)
+
+![](/screenshot-depth.jpg)
 
 ## Viewing tips
 
