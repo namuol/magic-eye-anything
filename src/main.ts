@@ -698,3 +698,25 @@ function handleError(event: Event) {
 
 window.addEventListener('error', handleError);
 window.addEventListener('unhandledrejection', handleError);
+
+let fadeTimeout: NodeJS.Timeout;
+function cancelFade() {
+  clearTimeout(fadeTimeout);
+  document.body.classList.remove('gui-faded');
+  fadeTimeout = setTimeout(fadeOutGUI, 2000);
+}
+
+function fadeOutGUI() {
+  document.body.classList.add('gui-faded');
+}
+setTimeout(fadeOutGUI, 2000);
+
+document.addEventListener('click', cancelFade);
+document.addEventListener('mousemove', cancelFade);
+document.addEventListener('keydown', cancelFade);
+document.addEventListener('touchstart', cancelFade);
+document.addEventListener('touchend', cancelFade);
+document.addEventListener('touchmove', cancelFade);
+document.addEventListener('touchcancel', cancelFade);
+document.addEventListener('touchleave', cancelFade);
+document.addEventListener('touchcancel', cancelFade);

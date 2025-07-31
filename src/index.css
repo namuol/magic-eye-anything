@@ -20,12 +20,14 @@ body {
 }
 
 /* Cursor visibility based on GUI state */
-body.gui-faded {
+body.gui-faded:has(.lil-gui.root > button.title:not([aria-expanded='true'])) {
   cursor: none;
-}
 
-body.gui-visible {
-  cursor: default;
+  & .lil-gui.root,
+  #viewing-tips-link {
+    transition: opacity 1s;
+    opacity: 0;
+  }
 }
 
 #messages {
