@@ -1,20 +1,21 @@
 :root {
-  --font-family: Monaco, Inconsolata, monospace;
+  --app--font-family: Monaco, Inconsolata, monospace;
+  --app--font-size: 0.85rem;
+  --app--gui-margin: 2ch;
 }
 body,
 html {
   margin: 0;
   background-color: #333;
-  overflow: hidden;
   color: white;
-  font-family: var(--font-family);
+  font-family: var(--app--font-family);
 }
 
 body {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  height: 100vh;
+  height: 101vh;
   /* background-image: url('/90s.png'); background-repeat: repeat; */
 }
 
@@ -59,17 +60,17 @@ a {
 
 #viewing-tips-link {
   position: fixed;
-  top: 4px;
+  bottom: var(--app--gui-margin);
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
   background: rgba(0, 0, 0, 0.85);
   color: #fff;
-  padding: 3px 10px;
-  border-radius: 10px;
-  font-size: 0.85rem;
+  padding: 0.8ch 1ch;
+  border-radius: 5px;
+  font-size: var(--app--font-size);
   text-decoration: none;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 2px var(--app--gui-margin) rgba(0, 0, 0, 0.15);
   transition: background 0.2s;
 }
 #viewing-tips-link:hover {
@@ -77,14 +78,20 @@ a {
 }
 
 .lil-gui.root {
-  top: 4px;
-  border-radius: 10px;
+  top: var(--app--gui-margin);
+  right: var(--app--gui-margin);
+  border-radius: 5px;
   overflow: hidden;
   width: 40ch;
+  & > button {
+    height: auto;
+    padding: 0.8ch 1ch;
+  }
 
+  &,
   & * {
-    font-family: var(--font-family) !important;
-    font-size: 0.85rem !important;
+    font-family: var(--app--font-family) !important;
+    font-size: var(--app--font-size) !important;
     font-weight: normal !important;
     color: white !important;
   }
@@ -113,6 +120,12 @@ label[for='choose-a-photo'] {
   border-radius: 10px;
   display: inline-block;
   margin-bottom: 10px;
-  font-size: 0.85rem;
-  font-family: var(--font-family);
+  font-size: var(--app--font-size);
+  font-family: var(--app--font-family);
+}
+
+canvas {
+  width: 100dvw;
+  height: 100dvh;
+  object-fit: contain;
 }
