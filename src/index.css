@@ -24,7 +24,9 @@ body.gui-faded:has(.lil-gui.root > button.title:not([aria-expanded='true'])) {
   cursor: none;
 
   & .lil-gui.root,
-  #viewing-tips-link {
+  #viewing-tips-link,
+  #save-image-button,
+  #choose-another-photo-button {
     transition: opacity 1s;
     opacity: 0;
   }
@@ -63,8 +65,7 @@ a {
 #viewing-tips-link {
   position: fixed;
   bottom: var(--app--gui-margin);
-  left: 50%;
-  transform: translateX(-50%);
+  left: var(--app--gui-margin);
   z-index: 1000;
   background: rgba(0, 0, 0, 0.85);
   color: #fff;
@@ -76,6 +77,38 @@ a {
   transition: background 0.2s;
 }
 #viewing-tips-link:hover {
+  background: rgba(30, 30, 30, 0.95);
+}
+
+#save-image-button,
+#choose-another-photo-button {
+  position: fixed;
+  bottom: var(--app--gui-margin);
+  z-index: 1000;
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  padding: 0.8ch 1ch;
+  border-radius: 5px;
+  font-size: var(--app--font-size);
+  font-family: var(--app--font-family);
+  text-decoration: none;
+  box-shadow: 0 2px var(--app--gui-margin) rgba(0, 0, 0, 0.15);
+  transition: background 0.2s;
+  border: none;
+  cursor: pointer;
+}
+
+#save-image-button {
+  right: var(--app--gui-margin);
+}
+
+#choose-another-photo-button {
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+#save-image-button:hover,
+#choose-another-photo-button:hover {
   background: rgba(30, 30, 30, 0.95);
 }
 

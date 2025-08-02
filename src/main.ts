@@ -5,19 +5,26 @@ import {
 } from '@huggingface/transformers';
 import GUI from 'lil-gui';
 
+import {
+  generateConfettiPattern,
+  generateNoisePattern,
+  generateSprinklesPattern,
+} from './PatternGenerator';
 import {PixelGrid} from './PixelGrid';
 
 // Available patterns in the public folder
 const PRESET_PATTERNS = [
-  {name: 'Marbles', url: 'marbles.jpg'},
-  {name: 'Flowers', url: 'flowers.jpg'},
-  {name: 'Flowers (vintage)', url: 'vintage-flowers-sm.jpg'},
-  {name: '90s', url: '90s.png'},
+  {name: 'Flowers', url: 'vintage-flowers-sm.jpg'},
 ] as const;
 
 type AppState = {
   disparityScale: number;
-  selectedPattern: (typeof PRESET_PATTERNS)[number]['url'] | 'custom';
+  selectedPattern:
+    | (typeof PRESET_PATTERNS)[number]['url']
+    | 'custom'
+    | 'confetti'
+    | 'sprinkles'
+    | 'noise';
   customPatternFile: File | null;
   currentImage: RawImage | null;
   currentDepth: PixelGrid | null;
@@ -30,12 +37,81 @@ type AppState = {
   displayMode: 'autostereogram' | 'depth-map' | 'source-image';
   depthDisplayMode: DepthDisplayMode;
   watermark: string;
+  gradientColor1: string;
+  gradientColor2: string;
+  gradientColor3: string;
+  updateGradientControls?: () => void;
 };
 
+// Convert HSL to hex color
+function hslToHex(h: number, s: number, l: number): string {
+  s /= 100;
+  l /= 100;
+
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0,
+    g = 0,
+    b = 0;
+
+  if (0 <= h && h < 60) {
+    r = c;
+    g = x;
+    b = 0;
+  } else if (60 <= h && h < 120) {
+    r = x;
+    g = c;
+    b = 0;
+  } else if (120 <= h && h < 180) {
+    r = 0;
+    g = c;
+    b = x;
+  } else if (180 <= h && h < 240) {
+    r = 0;
+    g = x;
+    b = c;
+  } else if (240 <= h && h < 300) {
+    r = x;
+    g = 0;
+    b = c;
+  } else if (300 <= h && h < 360) {
+    r = c;
+    g = 0;
+    b = x;
+  }
+
+  const rHex = Math.round((r + m) * 255)
+    .toString(16)
+    .padStart(2, '0');
+  const gHex = Math.round((g + m) * 255)
+    .toString(16)
+    .padStart(2, '0');
+  const bHex = Math.round((b + m) * 255)
+    .toString(16)
+    .padStart(2, '0');
+
+  return `#${rHex}${gHex}${bHex}`;
+}
+
+// Generate random HSL colors with pleasingly spaced hues
+function generateRandomGradientColors(): {
+  color1: string;
+  color2: string;
+  color3: string;
+} {
+  const baseHue = Math.random() * 360;
+  const color1 = hslToHex(baseHue, 70, 60);
+  const color2 = hslToHex((baseHue + 120) % 360, 80, 80);
+  const color3 = hslToHex((baseHue + 240) % 360, 70, 60);
+  return {color1, color2, color3};
+}
+
 // Global state for autostereogram generation
+const initialGradientColors = generateRandomGradientColors();
 const appState: AppState = {
   disparityScale: 1,
-  selectedPattern: 'marbles.jpg',
+  selectedPattern: 'noise',
   customPatternFile: null,
   currentImage: null,
   currentDepth: null,
@@ -48,6 +124,9 @@ const appState: AppState = {
   displayMode: 'autostereogram',
   depthDisplayMode: 'clamp',
   watermark: 'LOU.WTF',
+  gradientColor1: initialGradientColors.color1,
+  gradientColor2: initialGradientColors.color2,
+  gradientColor3: initialGradientColors.color3,
 };
 
 /**
@@ -75,14 +154,34 @@ async function generateAutostereogram(): Promise<void> {
   const tileWidth = minDisparity;
 
   // Load the pattern image
-  let patternImageUrl: string;
+  let patternImage: HTMLCanvasElement;
   if (appState.customPatternFile) {
-    patternImageUrl = URL.createObjectURL(appState.customPatternFile);
+    const patternImageUrl = URL.createObjectURL(appState.customPatternFile);
+    patternImage = (await RawImage.fromURL(patternImageUrl)).toCanvas();
+    URL.revokeObjectURL(patternImageUrl);
+  } else if (appState.selectedPattern === 'confetti') {
+    patternImage = generateConfettiPattern(
+      appState.gradientColor1,
+      appState.gradientColor2,
+      appState.gradientColor3,
+    );
+  } else if (appState.selectedPattern === 'sprinkles') {
+    patternImage = generateSprinklesPattern(
+      appState.gradientColor1,
+      appState.gradientColor2,
+      appState.gradientColor3,
+    );
+  } else if (appState.selectedPattern === 'noise') {
+    patternImage = generateNoisePattern(
+      appState.gradientColor1,
+      appState.gradientColor2,
+      appState.gradientColor3,
+    );
   } else {
-    patternImageUrl = appState.selectedPattern;
+    patternImage = (
+      await RawImage.fromURL(appState.selectedPattern)
+    ).toCanvas();
   }
-
-  const patternImage = (await RawImage.fromURL(patternImageUrl)).toCanvas();
   const patternCanvas = new OffscreenCanvas(tileWidth, canvasElement.height);
   fillImage(patternImage, patternCanvas, tileWidth);
   {
@@ -150,11 +249,6 @@ async function generateAutostereogram(): Promise<void> {
 
   // Display the appropriate canvas based on current setting
   updateCanvasDisplay();
-
-  // Clean up object URL if we created one
-  if (appState.customPatternFile) {
-    URL.revokeObjectURL(patternImageUrl);
-  }
 
   appState.isProcessing = false;
   hide('messages');
@@ -291,12 +385,12 @@ function regenerateDepthCanvasInternal(): void {
 }
 
 /**
- * Sets up the GUI controls
+ * Sets up the Advanced GUI controls
  */
 function setupGUI(): void {
   const gui = new GUI();
   gui.close();
-  gui.title('Controls');
+  gui.title('Advanced controls');
 
   // Hide the GUI initially
   gui.hide();
@@ -337,6 +431,7 @@ function setupGUI(): void {
     },
     {} as Record<string, string>,
   );
+  patternNames['Noise'] = 'noise';
   patternNames['Upload...'] = 'custom';
 
   gui
@@ -349,7 +444,64 @@ function setupGUI(): void {
         appState.customPatternFile = null;
         generateAutostereogram();
       }
+      updateGradientControls();
     });
+
+  // Gradient color controls (initially hidden)
+  const gradientFolder = gui.addFolder('Gradient Colors');
+  gradientFolder.hide();
+
+  gradientFolder
+    .addColor(appState, 'gradientColor1')
+    .name('Color 1')
+    .onChange(
+      debounce(() => {
+        if (isGeneratedPattern(appState.selectedPattern)) {
+          generateAutostereogram();
+        }
+      }, 500),
+    );
+
+  gradientFolder
+    .addColor(appState, 'gradientColor2')
+    .name('Color 2')
+    .onChange(
+      debounce(() => {
+        if (isGeneratedPattern(appState.selectedPattern)) {
+          generateAutostereogram();
+        }
+      }, 500),
+    );
+
+  gradientFolder
+    .addColor(appState, 'gradientColor3')
+    .name('Color 3')
+    .onChange(
+      debounce(() => {
+        if (isGeneratedPattern(appState.selectedPattern)) {
+          generateAutostereogram();
+        }
+      }, 500),
+    );
+
+  // Function to check if the selected pattern is a generated pattern
+  function isGeneratedPattern(pattern: string): boolean {
+    return (
+      pattern === 'confetti' || pattern === 'sprinkles' || pattern === 'noise'
+    );
+  }
+
+  // Function to update gradient controls visibility
+  function updateGradientControls(): void {
+    if (isGeneratedPattern(appState.selectedPattern)) {
+      gradientFolder.show();
+    } else {
+      gradientFolder.hide();
+    }
+  }
+
+  // Store the updateGradientControls function in app state for external access
+  appState.updateGradientControls = updateGradientControls;
 
   // Display mode dropdown
   const displayModeOptions = {
@@ -387,26 +539,10 @@ function setupGUI(): void {
     .onChange(() => {
       regenerateDepthCanvas();
     });
-
-  // Save image button
-  gui
-    .add(
-      {
-        saveImage: () => {
-          const canvas =
-            appState.displayMode === 'depth-map'
-              ? (document.getElementById('depth-canvas') as HTMLCanvasElement)
-              : (document.getElementById('canvas') as HTMLCanvasElement);
-          const link = document.createElement('a');
-          link.download = `${appState.displayMode}.png`;
-          link.href = canvas.toDataURL();
-          link.click();
-        },
-      },
-      'saveImage',
-    )
-    .name('⬇ Save Image');
 }
+
+// Global variable for the image chooser input
+let imageChooser: HTMLInputElement;
 
 async function main() {
   hide('preloader');
@@ -427,12 +563,33 @@ async function main() {
   // Setup GUI controls (initially hidden)
   setupGUI();
 
+  // Setup standalone button event listeners
+  const saveImageButton = document.getElementById(
+    'save-image-button',
+  ) as HTMLButtonElement;
+  const chooseAnotherPhotoButton = document.getElementById(
+    'choose-another-photo-button',
+  ) as HTMLButtonElement;
+
+  saveImageButton.addEventListener('click', () => {
+    const canvas =
+      appState.displayMode === 'depth-map'
+        ? (document.getElementById('depth-canvas') as HTMLCanvasElement)
+        : (document.getElementById('canvas') as HTMLCanvasElement);
+    const link = document.createElement('a');
+    link.download = `${appState.displayMode}.png`;
+    link.href = canvas.toDataURL();
+    link.click();
+  });
+
+  chooseAnotherPhotoButton.addEventListener('click', () => {
+    imageChooser.click();
+  });
+
   show('image-chooser');
 
   // Wait for the user to choose a photo...
-  const imageChooser = document.getElementById(
-    'choose-a-photo',
-  ) as HTMLInputElement;
+  imageChooser = document.getElementById('choose-a-photo') as HTMLInputElement;
 
   // When the user chooses a photo, load it into the canvas
   imageChooser.addEventListener('change', async (e) => {
@@ -442,7 +599,15 @@ async function main() {
     // Hide GUI while processing new image
     appState.gui?.hide();
 
-    hide('image-chooser');
+    // Hide canvases and show loading messages
+    hide('canvas');
+    hide('depth-canvas');
+    show('messages');
+
+    // Only hide image-chooser if this is the first time loading an image
+    if (!appState.currentImage) {
+      hide('image-chooser');
+    }
 
     show('loader');
     const depthEstimator = await pipeline(
@@ -506,9 +671,12 @@ async function main() {
     // Generate the initial autostereogram
     await generateAutostereogram();
 
-    // Show the GUI controls now that we have an image
+    // Show the GUI controls and buttons now that we have an image
     appState.gui?.show();
+    appState.updateGradientControls?.();
     show('viewing-tips-link');
+    show('save-image-button');
+    show('choose-another-photo-button');
   });
 }
 
@@ -673,7 +841,9 @@ type UiElementId =
   | 'generating-autostereogram'
   | 'canvas'
   | 'depth-canvas'
-  | 'viewing-tips-link';
+  | 'viewing-tips-link'
+  | 'save-image-button'
+  | 'choose-another-photo-button';
 
 function hide(id: UiElementId) {
   document.getElementById(id)!.hidden = true;
