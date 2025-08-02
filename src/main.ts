@@ -624,8 +624,12 @@ async function main() {
     'random-cat-button',
   ) as HTMLButtonElement;
   randomCatButton.addEventListener('click', async () => {
-    const size = Math.random() + 512;
-    setImage(await RawImage.fromURL(`https://placecats.com/${size}/${size}`));
+    const size = Math.floor(Math.random() * 10) + 512;
+    // Use CORS proxy to avoid CORS issues
+    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://placecats.com/${size}/${size}`)}`;
+    hide('image-chooser');
+    show('loader');
+    setImage(await RawImage.fromURL(proxyUrl));
   });
 
   async function setImage(image: RawImage) {
