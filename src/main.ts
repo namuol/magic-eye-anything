@@ -617,6 +617,20 @@ async function main() {
     const file = (e.target as HTMLInputElement).files?.[0];
     if (!file) return;
 
+    setImage(await RawImage.fromBlob(file));
+  });
+
+  const randomCatButton = document.getElementById(
+    'random-cat-button',
+  ) as HTMLButtonElement;
+  randomCatButton.addEventListener('click', async () => {
+    const size = Math.floor(Math.random() * 512) + 512;
+    setImage(await RawImage.fromURL(`https://placecats.com/${size}/${size}`));
+  });
+
+  async function setImage(image: RawImage) {
+    appState.currentImage = image;
+
     // Hide GUI while processing new image
     appState.gui?.hide();
 
@@ -625,10 +639,7 @@ async function main() {
     hide('depth-canvas');
     show('messages');
 
-    // Only hide image-chooser if this is the first time loading an image
-    if (!appState.currentImage) {
-      hide('image-chooser');
-    }
+    hide('image-chooser');
 
     show('loader');
     const depthEstimator = await pipeline(
@@ -643,11 +654,8 @@ async function main() {
 
     show('loading-depth-estimation');
 
-    const image = await RawImage.fromBlob(file);
-    appState.currentImage = image;
-
     const {depth} = (await depthEstimator(
-      image,
+      appState.currentImage,
     )) as DepthEstimationPipelineOutput;
     hide('loading-depth-estimation');
 
@@ -698,7 +706,7 @@ async function main() {
     show('viewing-tips-link');
     show('save-image-button');
     show('choose-another-photo-button');
-  });
+  }
 }
 
 main();
