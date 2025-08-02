@@ -426,6 +426,19 @@ function setupGUI(): void {
     }
   });
 
+  // Display mode dropdown
+  const displayModeOptions = {
+    Autostereogram: 'autostereogram',
+    'Depth map': 'depth-map',
+    'Source image': 'source-image',
+  };
+  gui
+    .add(appState, 'displayMode', displayModeOptions)
+    .name('Display')
+    .onChange(() => {
+      updateCanvasDisplay();
+    });
+
   // Pattern selection with custom option
   const patternNames = PRESET_PATTERNS.reduce(
     (acc, pattern) => {
@@ -448,6 +461,29 @@ function setupGUI(): void {
         generateAutostereogram();
       }
       updateGradientControls();
+    });
+
+  gui
+    .add(appState, 'watermark')
+    .name('Watermark')
+    .onChange(
+      debounce(() => {
+        generateAutostereogram();
+      }, 1000),
+    );
+
+  // Depth display mode dropdown
+  const depthDisplayModeOptions = {
+    Clamp: 'clamp',
+    Cutout: 'cutout',
+    Popout: 'popout',
+  };
+
+  gui
+    .add(appState, 'depthDisplayMode', depthDisplayModeOptions)
+    .name('Depth Style')
+    .onChange(() => {
+      regenerateDepthCanvas();
     });
 
   // Gradient color controls (initially hidden)
@@ -526,43 +562,6 @@ function setupGUI(): void {
 
   // Store the updateGradientControls function in app state for external access
   appState.updateGradientControls = updateGradientControls;
-
-  // Display mode dropdown
-  const displayModeOptions = {
-    Autostereogram: 'autostereogram',
-    'Depth map': 'depth-map',
-    'Source image': 'source-image',
-  };
-
-  gui
-    .add(appState, 'watermark')
-    .name('Watermark')
-    .onChange(
-      debounce(() => {
-        generateAutostereogram();
-      }, 1000),
-    );
-
-  gui
-    .add(appState, 'displayMode', displayModeOptions)
-    .name('Display')
-    .onChange(() => {
-      updateCanvasDisplay();
-    });
-
-  // Depth display mode dropdown
-  const depthDisplayModeOptions = {
-    Clamp: 'clamp',
-    Cutout: 'cutout',
-    Popout: 'popout',
-  };
-
-  gui
-    .add(appState, 'depthDisplayMode', depthDisplayModeOptions)
-    .name('Depth Style')
-    .onChange(() => {
-      regenerateDepthCanvas();
-    });
 }
 
 // Global variable for the image chooser input
