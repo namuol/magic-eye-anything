@@ -624,7 +624,7 @@ async function main() {
     'random-cat-button',
   ) as HTMLButtonElement;
   randomCatButton.addEventListener('click', async () => {
-    const size = Math.floor(Math.random() * 512) + 512;
+    const size = Math.random() + 512;
     setImage(await RawImage.fromURL(`https://placecats.com/${size}/${size}`));
   });
 
