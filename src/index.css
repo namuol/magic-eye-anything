@@ -1,8 +1,10 @@
 :root {
   --app--font-family: Monaco, Inconsolata, monospace;
   --app--font-size: 0.85rem;
-  --app--gui-margin: 2ch;
+  --app--gui-margin: 16px;
+  --app-control-height: 32px;
 }
+
 body,
 html {
   margin: 0;
@@ -25,6 +27,7 @@ body.gui-faded:has(.lil-gui.root > button.title:not([aria-expanded='true'])) {
 
   & .lil-gui.root,
   #viewing-tips-link,
+  #magic-mirror-link,
   #save-image-button,
   #choose-another-photo-button {
     transition: opacity 1s;
@@ -74,28 +77,14 @@ a {
   text-decoration: none;
 }
 
-#viewing-tips-link {
-  position: fixed;
-  bottom: var(--app--gui-margin);
-  left: var(--app--gui-margin);
-  z-index: 1000;
-  background: rgba(0, 0, 0, 0.85);
-  color: #fff;
-  padding: 0.8ch 1ch;
-  border-radius: 5px;
-  font-size: var(--app--font-size);
-  text-decoration: none;
-  box-shadow: 0 2px var(--app--gui-margin) rgba(0, 0, 0, 0.15);
-  transition: background 0.2s;
-}
-#viewing-tips-link:hover {
-  background: rgba(30, 30, 30, 0.95);
-}
-
+/* Fixed UI elements with common styling */
+#viewing-tips-link,
+#magic-mirror-link,
 #save-image-button,
 #choose-another-photo-button {
+  box-sizing: border-box;
+  height: var(--app-control-height);
   position: fixed;
-  bottom: var(--app--gui-margin);
   z-index: 1000;
   background: rgba(0, 0, 0, 0.85);
   color: #fff;
@@ -106,6 +95,34 @@ a {
   text-decoration: none;
   box-shadow: 0 2px var(--app--gui-margin) rgba(0, 0, 0, 0.15);
   transition: background 0.2s;
+  align-items: center;
+  justify-content: center;
+  &:not([hidden]) {
+    display: flex;
+  }
+}
+
+#viewing-tips-link:hover,
+#magic-mirror-link:hover,
+#save-image-button:hover,
+#choose-another-photo-button:hover {
+  background: rgba(30, 30, 30, 0.95);
+}
+
+/* Individual positioning for fixed elements */
+#viewing-tips-link {
+  bottom: var(--app--gui-margin);
+  left: var(--app--gui-margin);
+}
+
+#magic-mirror-link {
+  top: var(--app--gui-margin);
+  left: var(--app--gui-margin);
+}
+
+#save-image-button,
+#choose-another-photo-button {
+  bottom: var(--app--gui-margin);
   border: none;
   cursor: pointer;
 }
@@ -119,19 +136,18 @@ a {
   transform: translateX(-50%);
 }
 
-#save-image-button:hover,
-#choose-another-photo-button:hover {
-  background: rgba(30, 30, 30, 0.95);
-}
-
 .lil-gui.root {
   top: var(--app--gui-margin);
   right: var(--app--gui-margin);
   border-radius: 5px;
   overflow: hidden;
-  width: 40ch;
+  max-height: calc(100dvh - var(--app--gui-margin) * 2);
+
   & > button {
-    height: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: var(--app-control-height);
     padding: 0.8ch 1ch;
   }
 
@@ -186,7 +202,6 @@ label[for='choose-a-photo'] {
 }
 
 #random-cat-button {
-  /* muted */
   color: #aaa;
   font-size: 0.8em;
   font-family: var(--app--font-family);
@@ -206,4 +221,47 @@ canvas {
   width: 100dvw;
   height: 100dvh;
   object-fit: contain;
+}
+
+/* mobile styles */
+@media (max-width: 600px) {
+  #bottom-actions,
+  #top-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--app--gui-margin);
+    padding: var(--app--gui-margin);
+  }
+
+  #top-actions {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
+  #bottom-actions {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+
+  #viewing-tips-link,
+  #magic-mirror-link,
+  #save-image-button,
+  #choose-another-photo-button {
+    position: relative;
+    left: auto;
+    right: auto;
+    bottom: auto;
+    top: auto;
+    transform: none;
+  }
+
+  .lil-gui.root {
+    top: calc(var(--app--gui-margin) * 2 + var(--app-control-height));
+    left: var(--app--gui-margin);
+    width: calc(100vw - var(--app--gui-margin) * 2);
+  }
 }

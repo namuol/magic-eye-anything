@@ -482,9 +482,7 @@ function setupGUI(): void {
   gui
     .add(appState, 'depthDisplayMode', depthDisplayModeOptions)
     .name('Depth Style')
-    .onChange(() => {
-      regenerateDepthCanvas();
-    });
+    .onChange(regenerateDepthCanvas);
 
   // Gradient color controls (initially hidden)
   const gradientFolder = gui.addFolder('Gradient');
@@ -611,6 +609,7 @@ async function main() {
     hide('canvas');
     hide('depth-canvas');
     hide('viewing-tips-link');
+    hide('magic-mirror-link');
     hide('save-image-button');
     hide('choose-another-photo-button');
     appState.gui?.hide();
@@ -730,6 +729,7 @@ async function main() {
     appState.gui?.show();
     appState.updateGradientControls?.();
     show('viewing-tips-link');
+    show('magic-mirror-link');
     show('save-image-button');
     show('choose-another-photo-button');
   }
@@ -899,7 +899,8 @@ type UiElementId =
   | 'viewing-tips-link'
   | 'save-image-button'
   | 'choose-another-photo-button'
-  | 'image-loader';
+  | 'image-loader'
+  | 'magic-mirror-link';
 
 function hide(id: UiElementId) {
   document.getElementById(id)!.hidden = true;
