@@ -451,38 +451,59 @@ function setupGUI(): void {
   const gradientFolder = gui.addFolder('Gradient Colors');
   gradientFolder.hide();
 
-  gradientFolder
+  const handleGradientChange = debounce(generateAutostereogram, 500);
+
+  const color1Controller = gradientFolder
     .addColor(appState, 'gradientColor1')
     .name('Color 1')
-    .onChange(
-      debounce(() => {
-        if (isGeneratedPattern(appState.selectedPattern)) {
-          generateAutostereogram();
-        }
-      }, 500),
-    );
+    .onChange(handleGradientChange);
 
-  gradientFolder
+  const color2Controller = gradientFolder
     .addColor(appState, 'gradientColor2')
     .name('Color 2')
-    .onChange(
-      debounce(() => {
-        if (isGeneratedPattern(appState.selectedPattern)) {
-          generateAutostereogram();
-        }
-      }, 500),
-    );
+    .onChange(handleGradientChange);
 
-  gradientFolder
+  const color3Controller = gradientFolder
     .addColor(appState, 'gradientColor3')
     .name('Color 3')
-    .onChange(
-      debounce(() => {
-        if (isGeneratedPattern(appState.selectedPattern)) {
-          generateAutostereogram();
-        }
-      }, 500),
-    );
+    .onChange(handleGradientChange);
+
+  // Add randomize button to gradient folder
+  gradientFolder
+    .add(
+      {
+        randomize: () => {
+          const randomColors = generateRandomGradientColors();
+
+          // Disable gradient change handlers to prevent unnecessary
+          // autostereogram re-generation:
+          {
+            // @ts-expect-error - Hack to get around typescript complaints
+            color1Controller.onChange = () => {};
+            // @ts-expect-error - Hack to get around typescript complaints
+            color2Controller.onChange = () => {};
+            // @ts-expect-error - Hack to get around typescript complaints
+            color3Controller.onChange = () => {};
+          }
+          color1Controller.setValue(randomColors.color1);
+          color2Controller.setValue(randomColors.color2);
+          color3Controller.setValue(randomColors.color3);
+
+          // Re-enable gradient change handlers to resume autostereogram
+          // generation:
+          {
+            // @ts-expect-error - Hack to get around typescript complaints
+            color1Controller.onChange = handleGradientChange;
+            // @ts-expect-error - Hack to get around typescript complaints
+            color2Controller.onChange = handleGradientChange;
+            // @ts-expect-error - Hack to get around typescript complaints
+            color3Controller.onChange = handleGradientChange;
+          }
+        },
+      },
+      'randomize',
+    )
+    .name('🎲 Randomize');
 
   // Function to check if the selected pattern is a generated pattern
   function isGeneratedPattern(pattern: string): boolean {
