@@ -938,7 +938,35 @@ function fadeOutGUI() {
 }
 setTimeout(fadeOutGUI, 2000);
 
-document.addEventListener('click', cancelFade);
+document.addEventListener('click', (e: MouseEvent) => {
+  if (document.body.classList.contains('gui-faded')) {
+    cancelFade();
+    return;
+  }
+
+  cancelFade();
+  if (
+    e.target instanceof HTMLElement &&
+    (e.target.getAttribute('id') === 'canvas' ||
+      e.target.getAttribute('id') === 'depth-canvas')
+  ) {
+    switch (appState.displayMode) {
+      case 'autostereogram': {
+        appState.displayMode = 'depth-map';
+        break;
+      }
+      case 'depth-map': {
+        appState.displayMode = 'source-image';
+        break;
+      }
+      case 'source-image': {
+        appState.displayMode = 'autostereogram';
+        break;
+      }
+    }
+    updateCanvasDisplay();
+  }
+});
 document.addEventListener('mousemove', cancelFade);
 document.addEventListener('keydown', cancelFade);
 document.addEventListener('touchstart', cancelFade);
