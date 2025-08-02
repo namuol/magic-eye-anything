@@ -658,6 +658,17 @@ async function main() {
 
     hide('image-chooser');
 
+    // Display the source image immediately
+    show('canvas');
+    const canvasElement = document.getElementById(
+      'canvas',
+    ) as HTMLCanvasElement;
+    const ctx = canvasElement.getContext('2d')!;
+
+    // Clear canvas and draw the source image centered
+    ctx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+    drawImageCentered(image.toCanvas(), canvasElement);
+
     show('loader');
     if (!appState.depthEstimator) {
       appState.depthEstimator = (await pipeline(
@@ -681,9 +692,6 @@ async function main() {
     // Store the original depth estimation for later regeneration
     appState.originalDepthEstimation = depth;
 
-    const canvasElement = document.getElementById(
-      'canvas',
-    ) as HTMLCanvasElement;
     const hiddenImageCanvas = new OffscreenCanvas(
       canvasElement.width,
       canvasElement.height,

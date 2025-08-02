@@ -36,11 +36,23 @@ body.gui-faded:has(.lil-gui.root > button.title:not([aria-expanded='true'])) {
   &:not([hidden]) {
     display: flex;
   }
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   align-items: center;
+  place-content: center;
   margin: auto;
   padding: 2ch;
   max-width: 80ch;
   flex-grow: 1;
+
+  & p {
+    text-shadow: 0 0 10px rgba(0, 0, 0, 1);
+    padding: 1ch;
+    border-radius: 5px;
+  }
 }
 
 #title {
@@ -144,7 +156,21 @@ a {
     display: grid;
   }
   place-items: center;
-  width: 100%;
+  background-color: rgba(0, 0, 0, 0.85);
+  padding: 1ch;
+  border-radius: 15px;
+
+  & > img {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100dvw;
+    height: 100dvh;
+    object-fit: contain;
+    opacity: 0.5;
+    pointer-events: none;
+    z-index: -1;
+  }
 }
 
 label[for='choose-a-photo'] {
