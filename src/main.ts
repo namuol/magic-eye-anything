@@ -1,4 +1,5 @@
 import {
+  DepthEstimationPipeline,
   DepthEstimationPipelineOutput,
   pipeline,
   RawImage,
@@ -41,6 +42,7 @@ type AppState = {
   gradientColor2: string;
   gradientColor3: string;
   updateGradientControls?: () => void;
+  depthEstimator: DepthEstimationPipeline | null;
 };
 
 // Convert HSL to hex color
@@ -127,6 +129,7 @@ const appState: AppState = {
   gradientColor1: initialGradientColors.color1,
   gradientColor2: initialGradientColors.color2,
   gradientColor3: initialGradientColors.color3,
+  depthEstimator: null,
 };
 
 /**
@@ -503,7 +506,7 @@ function setupGUI(): void {
       },
       'randomize',
     )
-    .name('🎲 Randomize');
+    .name('Randomize');
 
   // Function to check if the selected pattern is a generated pattern
   function isGeneratedPattern(pattern: string): boolean {
@@ -604,7 +607,15 @@ async function main() {
   });
 
   chooseAnotherPhotoButton.addEventListener('click', () => {
-    imageChooser.click();
+    hide('messages');
+    hide('canvas');
+    hide('depth-canvas');
+    hide('viewing-tips-link');
+    hide('save-image-button');
+    hide('choose-another-photo-button');
+    appState.gui?.hide();
+    show('messages');
+    show('image-chooser');
   });
 
   show('image-chooser');
@@ -624,12 +635,14 @@ async function main() {
     'random-cat-button',
   ) as HTMLButtonElement;
   randomCatButton.addEventListener('click', async () => {
-    const size = Math.floor(Math.random() * 10) + 512;
+    const size = Math.floor(Math.random() * 100) + 512;
     // Use CORS proxy to avoid CORS issues
     const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://placecats.com/${size}/${size}`)}`;
     hide('image-chooser');
-    show('loader');
-    setImage(await RawImage.fromURL(proxyUrl));
+    show('image-loader');
+    const image = await RawImage.fromURL(proxyUrl);
+    hide('image-loader');
+    setImage(image);
   });
 
   async function setImage(image: RawImage) {
@@ -646,19 +659,21 @@ async function main() {
     hide('image-chooser');
 
     show('loader');
-    const depthEstimator = await pipeline(
-      'depth-estimation',
-      'onnx-community/depth-anything-v2-small',
-      {
-        dtype: hasFp16 ? 'fp16' : undefined,
-        device: hasWebGPU ? 'webgpu' : undefined,
-      },
-    );
+    if (!appState.depthEstimator) {
+      appState.depthEstimator = (await pipeline(
+        'depth-estimation',
+        'onnx-community/depth-anything-v2-small',
+        {
+          dtype: hasFp16 ? 'fp16' : undefined,
+          device: hasWebGPU ? 'webgpu' : undefined,
+        },
+      )) as unknown as DepthEstimationPipeline;
+    }
     hide('loader');
 
     show('loading-depth-estimation');
 
-    const {depth} = (await depthEstimator(
+    const {depth} = (await appState.depthEstimator(
       appState.currentImage,
     )) as DepthEstimationPipelineOutput;
     hide('loading-depth-estimation');
@@ -876,7 +891,8 @@ type UiElementId =
   | 'depth-canvas'
   | 'viewing-tips-link'
   | 'save-image-button'
-  | 'choose-another-photo-button';
+  | 'choose-another-photo-button'
+  | 'image-loader';
 
 function hide(id: UiElementId) {
   document.getElementById(id)!.hidden = true;
