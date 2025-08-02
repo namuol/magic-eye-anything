@@ -451,7 +451,7 @@ function setupGUI(): void {
     });
 
   // Gradient color controls (initially hidden)
-  const gradientFolder = gui.addFolder('Gradient Colors');
+  const gradientFolder = gui.addFolder('Gradient');
   gradientFolder.hide();
 
   const handleGradientChange = debounce(generateAutostereogram, 500);
@@ -567,6 +567,7 @@ function setupGUI(): void {
 
 // Global variable for the image chooser input
 let imageChooser: HTMLInputElement;
+let randomCatNumber = Math.floor(Math.random() * 9);
 
 async function main() {
   hide('preloader');
@@ -634,13 +635,12 @@ async function main() {
   const randomCatButton = document.getElementById(
     'random-cat-button',
   ) as HTMLButtonElement;
+
   randomCatButton.addEventListener('click', async () => {
-    const size = Math.floor(Math.random() * 100) + 512;
-    // Use CORS proxy to avoid CORS issues
-    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://placecats.com/${size}/${size}`)}`;
     hide('image-chooser');
     show('image-loader');
-    const image = await RawImage.fromURL(proxyUrl);
+    const image = await RawImage.fromURL(`cat-${1 + randomCatNumber}.jpg`);
+    randomCatNumber = (randomCatNumber + 1) % 8;
     hide('image-loader');
     setImage(image);
   });
