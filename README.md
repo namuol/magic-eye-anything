@@ -30,4 +30,4 @@ Good luck! 🤓
 
 If you like this sort of thing, and are using something a little more powerful
 than a typical mobile device, try the [real time "magic eye"
-mirror](https://namuol.github.io/magic-eye-yourself/) demo!
+mirror](https://namuol.github.io/magic-eye-mirror/) demo!
